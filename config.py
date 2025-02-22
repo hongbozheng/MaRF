@@ -18,16 +18,14 @@ _C.MODEL = CN()
 _C.MODEL.TX = CN()
 _C.MODEL.TX.VOCAB_SIZE = 10000
 _C.MODEL.TX.DIM = 512
-# _C.MODEL.TX.SRC_VOCAB_SIZE = len(tokenizer.components)
-# _C.MODEL.TX.TGT_VOCAB_SIZE = len(tokenizer.components)
 _C.MODEL.TX.N_LAYERS = 6
 _C.MODEL.TX.N_HEADS = 8
 _C.MODEL.TX.N_KV_HEADS = 8
+_C.MODEL.TX.BASE = 10000
+_C.MODEL.TX.MAX_SEQ_LEN = 2048
 _C.MODEL.TX.MULTIPLE_OF = 256
 _C.MODEL.TX.FFN_DIM_MULTIPLIER = None
 _C.MODEL.TX.NORM_EPS = 1e-5
-_C.MODEL.TX.MAX_SEQ_LEN = 2048
-_C.MODEL.TX.ROPE_THETA = 10000.0
 
 
 # -----------------------------------------------------------------------------
