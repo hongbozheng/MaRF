@@ -5,82 +5,10 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataclasses import dataclass
-
-
-@dataclass
-class ModelArgs:
-    dim: int = 4096
-    n_layers: int = 32
-    n_heads: int = 32
-    n_kv_heads: Optional[int] = None
-    vocab_size: int = -1
-    multiple_of: int = 256
-    ffn_dim_multiplier: Optional[float] = None
-    norm_eps: float = 1e-5
-    rope_theta: float = 10000.0
-
-    # needed for KV cache
-    max_batch_size: int = 32
-    max_seq_len: int = 2048
-
-    device: torch.device = None
-
-
-def precompute_theta_pos_frequencies(
-        head_dim: int,
-        seq_len:int,
-        device: torch.device,
-        theta: float = 10000.0,
-) -> Tensor:
-    assert head_dim % 2 == 0, "Dimension must be divisible by 2!"
-    # theta_i = 10000.0 ^ (-2(i-1)/dim) for i in [1..dim/2]
-    # [H_dim / 2]
-    theta_numerator = torch.arange(
-        start=0, end=head_dim, step=2, dtype=torch.float32
-    )
-    # [H_dim / 2]
-    theta = 1.0 / (theta ** (theta_numerator / head_dim)).to(device=device)
-    # [S]
-    m = torch.arange(seq_len, device=device)
-    # [S] outer* [H_dim / 2] = [S, H_dim / 2]
-    freqs = torch.outer(input=m, vec2=theta).float()
-    # c = R * e ^ (i * m * theta), where R = 1 as follows:
-    freqs_complex = torch.polar(abs=torch.ones_like(input=freqs), angle=freqs)
-
-    return freqs_complex
-
-
-def apply_rotary_embeddings(x: Tensor, freqs_complex: Tensor, device: str):
-    # [B, S, H, H_dim] -> [B, S, H, H_dim / 2]
-    x_complex = torch.view_as_complex(
-        input=x.float().reshape(*x.shape[:-1], -1, 2)
-    )
-    # [S, H_dim / 2] -> [1, S, 1, H_dim / 2]
-    freqs_complex = freqs_complex.unsqueeze(dim=0).unsqueeze(dim=2)
-    # [B, S, H, H_dim / 2] * [B, S, H, H_dim / 2]
-    x_rotated = x_complex * freqs_complex
-    # [B, S, H, H_dim / 2] -> [B, S, H, H_dim / 2, 2]
-    x_out = torch.view_as_real(input=x_rotated)
-    # [B, S, H, H_dim / 2] -> [B, S, H, H_dim]
-    x_out = x_out.reshape(*x.shape)
-    return x_out.type_as(x).to(device=device)
-
-
-def repeat_kv(x: Tensor, n_rep: int) -> Tensor:
-    batch_size, seq_len, n_kv_heads, head_dim = x.size()
-    if n_rep == 1:
-        return x
-    else:
-        return (
-            x[:, :, :, None, :]
-            .expand(batch_size, seq_len, n_kv_heads, n_rep, head_dim)
-            .reshape(batch_size, seq_len, n_kv_heads * n_rep, head_dim)
-        )
 
 
 class RotaryPositionalEmbeddings(nn.Module):
-    def __init__(self, head_dim: int, max_seq_len: int, base: int) -> None:
+    def __init__(self, head_dim: int, base: int, max_seq_len: int) -> None:
         super().__init__()
         # [H_D/2]
         theta = 1.0 / (
@@ -141,17 +69,18 @@ class Attention(nn.Module):
             dim: int,
             n_heads: int,
             n_kv_heads: Optional[int],
+            base: int,
+            max_seq_len: int,
     ) -> None:
         super().__init__()
 
-        self.n_kv_heads = n_heads if n_kv_heads is None else n_kv_heads
         self.n_q_heads = n_heads
-        self.n_rep = self.n_q_heads // self.n_kv_heads
         self.head_dim = dim // n_heads
+        self.n_kv_heads = n_heads if n_kv_heads is None else n_kv_heads
 
         self.wq = nn.Linear(
             in_features=dim,
-            out_features=n_heads * self.head_dim,
+            out_features=self.n_q_heads * self.head_dim,
             bias=False,
         )
         self.wk = nn.Linear(
@@ -165,37 +94,24 @@ class Attention(nn.Module):
             bias=False,
         )
         self.wo = nn.Linear(
-            in_features=n_heads * self.head_dim,
+            in_features=self.n_q_heads * self.head_dim,
             out_features=dim,
             bias=False,
         )
 
-        # self.cache_k = torch.zeros(
-        #     size=(
-        #         args.max_batch_size,
-        #         args.max_seq_len,
-        #         self.n_kv_heads,
-        #         self.head_dim,
-        #     ),
-        #     device=self.device,
-        # )
-        # self.cache_v = torch.zeros(
-        #     size=(
-        #         args.max_batch_size,
-        #         args.max_seq_len,
-        #         self.n_kv_heads,
-        #         self.head_dim,
-        #     ),
-        #     device=self.device,
-        # )
+        self.rope = RotaryPositionalEmbeddings(
+            head_dim=self.head_dim,
+            base=base,
+            max_seq_len=max_seq_len,
+        )
 
         return
 
     def forward(
             self,
             x: Tensor,
-            freqs_complex: Tensor,
             mask: Optional[Tensor],
+            input_pos: Optional[Tensor],
     ) -> Tensor:
         # [B, S, D]
         batch_size, seq_len, _ = x.shape
@@ -213,12 +129,10 @@ class Attention(nn.Module):
         # [B, S, H_KV * D_H] -> [B, S, H_KV, D_H]
         v = v.view(batch_size, seq_len, self.n_kv_heads, self.head_dim)
 
-        q = apply_rotary_embeddings(
-            x=q, freqs_complex=freqs_complex, device=x.device
-        )
-        k = apply_rotary_embeddings(
-            x=k, freqs_complex=freqs_complex, device=x.device
-        )
+        # [B, S,  H_Q * D_H] -> [B, S,  H_Q, D_H]
+        q = self.rope(x=q, input_pos=input_pos)
+        # [B, S, H_KV * D_H] -> [B, S, H_KV, D_H]
+        k = self.rope(x=k, input_pos=input_pos)
 
         # [B, S, H_Q, D_H] -> [B, H_Q, S, D_H]
         q = q.transpose(dim0=1, dim1=2)
@@ -228,7 +142,7 @@ class Attention(nn.Module):
         v = v.transpose(dim0=1, dim1=2)
 
         # [B, H_Q, S, D_H] @ [B, H_Q, D_H, S_KV] -> [B, H_Q, S, S_KV]
-        scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.H_dim)
+        scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.head_dim)
         if mask is not None:
             # TODO: mask should be a bool tensor
             scores.masked_fill_(mask=mask, value=float('-inf'))
@@ -302,6 +216,8 @@ class EncoderBlock(nn.Module):
             dim: int,
             n_heads: int,
             n_kv_heads: int,
+            base: int,
+            max_seq_len: int,
             multiple_of: int,
             ffn_dim_multiplier: Optional[float],
             norm_eps: float,
@@ -312,6 +228,8 @@ class EncoderBlock(nn.Module):
             dim=dim,
             n_heads=n_heads,
             n_kv_heads=n_kv_heads,
+            base=base,
+            max_seq_len=max_seq_len,
         )
         self.feed_forward = FeedForward(
             dim=dim,
@@ -328,12 +246,12 @@ class EncoderBlock(nn.Module):
     def forward(
             self,
             x: Tensor,
-            freqs_complex: Tensor,
             mask: Optional[Tensor],
+            input_pos: Optional[Tensor],
     ) -> Tensor:
         # [B, S, D] + [B, S, D] -> [B, S, D]
         h = x + self.attention.forward(
-            x=self.attention_norm(x), freqs_complex=freqs_complex, mask=mask
+            x=self.attention_norm(x), mask=mask, input_pos=input_pos
         )
         out = h + self.feed_forward(self.ffn_norm(h))
         return out
@@ -347,19 +265,18 @@ class Transformer(nn.Module):
             n_layers: int,
             n_heads: int,
             n_kv_heads: Optional[int],
+            base: int,
+            max_seq_len: int,
             multiple_of: int,
             ffn_dim_multiplier: Optional[float],
             norm_eps: float,
-            max_seq_len: int,
-            rope_theta: float,
-            device: torch.device,
     ) -> None:
         super().__init__()
 
         assert vocab_size != -1, "Vocabulary size must be set!"
 
         self.tok_embeddings = nn.Embedding(
-            num_embeddings=vocab_size,embedding_dim=dim
+            num_embeddings=vocab_size, embedding_dim=dim
         )
 
         self.layers = nn.ModuleList()
@@ -369,6 +286,8 @@ class Transformer(nn.Module):
                     dim=dim,
                     n_heads=n_heads,
                     n_kv_heads=n_kv_heads,
+                    base=base,
+                    max_seq_len=max_seq_len,
                     multiple_of=multiple_of,
                     ffn_dim_multiplier=ffn_dim_multiplier,
                     norm_eps=norm_eps,
@@ -376,30 +295,28 @@ class Transformer(nn.Module):
             )
 
         self.norm = RMSNorm(dim=dim, eps=norm_eps)
-        self.output = nn.Linear(
-            in_features=dim, out_features=vocab_size, bias=False
-        )
-
-        self.freqs_complex = precompute_theta_pos_frequencies(
-            head_dim=dim // n_heads,
-            seq_len=max_seq_len * 2,
-            theta=rope_theta,
-            device=device,
-        )
+        # TODO: may need to have an additional linear layer to bring the
+        # embedding dimension of equation to the same embedding dimension of
+        # the query
+        # self.output = nn.Linear(
+        #     in_features=dim, out_features=vocab_size, bias=False
+        # )
 
         return
 
-    def forward(self, tokens: Tensor, mask: Tensor):
+    def forward(
+            self,
+            tokens: Tensor,
+            mask: Tensor,
+            input_pos: Optional[Tensor],
+    ) -> Tensor:
         # [B, S] -> [B, S, D]
         h = self.tok_embeddings(tokens)
 
-        # retrieve the pairs [m, theta] corresponding to the positions
-        # [start_pos, start_pos + S]
-        # freqs_complex = self.freqs_complex[start_pos:start_pos + 1]
-
         for layer in self.layers:
-            h = layer(h, freqs_complex)
+            h = layer(x=h, mask=mask, input_pos=input_pos)
         h = self.norm(h)
-        output = self.output(h).float()
+        # TODO
+        # output = self.output(h).float()
 
-        return output
+        return h
