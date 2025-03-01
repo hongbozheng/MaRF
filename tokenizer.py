@@ -5,13 +5,16 @@ import torch
 
 
 class Tokenizer:
-    def __init__(self) -> None:
+    def __init__(self, file_path: str) -> None:
         self.soe = "SOE"
         self.eoe = "EOE"
         self.pad = "PAD"
 
         self.vocabs = [self.pad, self.soe]
-        # TODO: parse all tokens and add to vocabs list
+        file = open(file=file_path, mode='r')
+        for line in file:
+            self.vocabs.append(line.strip())
+        file.close()
         self.vocabs.append(self.eoe)  # put end-of-expr in the end
 
         self.word2idx = {w: i for i, w in enumerate(self.vocabs)}
@@ -19,10 +22,10 @@ class Tokenizer:
 
         return
 
-    def encode(self, expr: List[str]) -> Tensor:
+    def encode(self, expr: str) -> Tensor:
         tokens = []
 
-        for word in self.vocabs:
+        for word in expr.split(sep=' '):
             tokens.append(self.word2idx[word])
 
         tokens = torch.cat(

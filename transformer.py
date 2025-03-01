@@ -144,7 +144,6 @@ class Attention(nn.Module):
         # [B, H_Q, S, D_H] @ [B, H_Q, D_H, S_KV] -> [B, H_Q, S, S_KV]
         scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.head_dim)
         if mask is not None:
-            # TODO: mask should be a bool tensor
             scores.masked_fill_(mask=mask, value=float('-inf'))
         scores = F.softmax(input=scores.float(), dim=-1).type_as(q)
 

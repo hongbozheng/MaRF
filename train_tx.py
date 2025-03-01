@@ -1,14 +1,35 @@
 #!/usr/bin/env python3
 
 
-import torch
-
-from config import get_config
+from config import get_config, DEVICE
+from criterion import InfoNCE
+from dataset import ARQMath
+from tokenizer import Tokenizer
+from torch.optim.adamw import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from torch.utils.data import DataLoader
+from train import train_model
 from transformer import Transformer
 
 
 def main() -> None:
     cfg = get_config(args=None)
+
+    tokenizer = Tokenizer(file_path=cfg.DATA.VOCAB_FILE)
+
+    arqmath = ARQMath(
+        file_path=cfg.DATA.FORMULA_FILE,
+        tokenizer=tokenizer,
+        val=False,
+    )
+    train_loader = DataLoader(
+        dataset=arqmath,
+        batch_size=cfg.LOADER.TRAIN.BATCH_SIZE,
+        shuffle=cfg.LOADER.TRAIN.SHUFFLE,
+        num_workers=cfg.LOADER.TRAIN.NUM_WORKERS,
+        collate_fn=arqmath.collate_fn,
+        pin_memory=cfg.LOADER.TRAIN.PIN_MEMORY,
+    )
 
     math_enc = Transformer(
         vocab_size=cfg.MODEL.TX.VOCAB_SIZE,
@@ -23,12 +44,36 @@ def main() -> None:
         norm_eps=cfg.MODEL.TX.NORM_EPS,
     )
 
-    # temporary forward test
-    input = torch.randint(low=0, high=100, size=(4, 64), dtype=torch.int64)
-    mask = torch.triu(input=torch.ones(64, 64, dtype=torch.bool), diagonal=1)
+    optimizer = AdamW(
+        params=math_enc.parameters(),
+        lr=cfg.OPTIM.ADAMW.LR,
+        weight_decay=cfg.OPTIM.ADAMW.WEIGHT_DECAY,
+    )
 
-    output = math_enc(tokens=input, mask=mask, input_pos=None)
-    print(output.size())
+    lr_scheduler = CosineAnnealingWarmRestarts(
+        optimizer=optimizer,
+        T_0=cfg.LRS.CAWR.T_0,
+        T_mult=cfg.LRS.CAWR.T_MULT,
+        eta_min=cfg.LRS.CAWR.ETA_MIN,
+        last_epoch=cfg.LRS.CAWR.LAST_EPOCH,
+    )
+
+    criterion = InfoNCE(
+        temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
+        reduction=cfg.CRITERION.INFONCE.REDUCTION,
+    )
+
+    train_model(
+        model=math_enc,
+        device=DEVICE,
+        ckpt_filepath=cfg.BEST_MODEL.TX,
+        optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
+        n_epochs=cfg.TRAIN.N_EPOCHS,
+        criterion=criterion,
+        max_norm=cfg.TRAIN.MAX_NORM,
+        train_loader=train_loader,
+    )
 
     return
 

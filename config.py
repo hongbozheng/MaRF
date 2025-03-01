@@ -73,9 +73,20 @@ _C.LRS.CALR.LAST_EPOCH = -1
 # -----------------------------------------------------------------------------
 _C.CRITERION = CN()
 
-""" CrossEntropy """
-_C.CRITERION.CROSSENTROPY = CN()
-_C.CRITERION.CROSSENTROPY.LABEL_SMOOTHING = 0.1
+""" InfoNCE """
+_C.CRITERION.INFONCE = CN()
+_C.CRITERION.INFONCE.TEMPERATURE = 0.1
+_C.CRITERION.INFONCE.REDUCTION = "mean"
+
+""" SimCSE """
+_C.CRITERION.SIMCSE = CN()
+_C.CRITERION.SIMCSE.TEMPERATURE = 0.1
+_C.CRITERION.SIMCSE.REDUCTION = "mean"
+
+""" Contrastive Loss """
+_C.CRITERION.CL = CN()
+_C.CRITERION.CL.MARGIN = 1.0
+_C.CRITERION.CL.REDUCTION = "mean"
 
 
 # -----------------------------------------------------------------------------
@@ -83,8 +94,10 @@ _C.CRITERION.CROSSENTROPY.LABEL_SMOOTHING = 0.1
 # -----------------------------------------------------------------------------
 _C.DATA = CN()
 
-""" EquivExpr """
+""" Formulas """
 _C.DATA.DATA_DIR = "data"
+_C.DATA.VOCAB_FILE = _C.DATA.DATA_DIR + "/vocabs.txt"
+_C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
 _C.DATA.TRAIN_FILE = _C.DATA.DATA_DIR + "/expr_pairs.txt"
 _C.DATA.VAL_FILE = _C.DATA.DATA_DIR + "/exprs_val.txt"
 
@@ -96,7 +109,7 @@ _C.LOADER = CN()
 
 """ Train DataLoader """
 _C.LOADER.TRAIN = CN()
-_C.LOADER.TRAIN.BATCH_SIZE = 256
+_C.LOADER.TRAIN.BATCH_SIZE = 4
 _C.LOADER.TRAIN.SHUFFLE = False
 _C.LOADER.TRAIN.NUM_WORKERS = 1
 _C.LOADER.TRAIN.PIN_MEMORY = True
