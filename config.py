@@ -29,13 +29,17 @@ _C.MODEL.TX.NORM_EPS = 1e-5
 
 
 # -----------------------------------------------------------------------------
-# Best Model
+# Checkpoint
 # -----------------------------------------------------------------------------
-_C.BEST_MODEL = CN()
+_C.CKPT = CN()
 
 """ Model """
-_C.BEST_MODEL.DIR = "models"
-_C.BEST_MODEL.TX = _C.BEST_MODEL.DIR + "/tx.ckpt"
+_C.CKPT.DIR = "models"
+
+""" Mamba """
+_C.CKPT.TX = CN()
+_C.CKPT.TX.BEST = _C.CKPT.DIR + "/tx_best.ckpt"
+_C.CKPT.TX.LAST = _C.CKPT.DIR + "/tx_last.ckpt"
 
 
 # -----------------------------------------------------------------------------

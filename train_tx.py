@@ -22,7 +22,7 @@ def main() -> None:
         tokenizer=tokenizer,
         val=False,
     )
-    train_loader = DataLoader(
+    dataloader = DataLoader(
         dataset=arqmath,
         batch_size=cfg.LOADER.TRAIN.BATCH_SIZE,
         shuffle=cfg.LOADER.TRAIN.SHUFFLE,
@@ -65,14 +65,15 @@ def main() -> None:
 
     train_model(
         model=math_enc,
-        device=DEVICE,
-        ckpt_filepath=cfg.BEST_MODEL.TX,
+        ckpt_best=cfg.CKPT.TX.BEST,
+        ckpt_last=cfg.CKPT.TX.LAST,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
-        n_epochs=cfg.TRAIN.N_EPOCHS,
         criterion=criterion,
         max_norm=cfg.TRAIN.MAX_NORM,
-        train_loader=train_loader,
+        device=DEVICE,
+        n_epochs=cfg.TRAIN.N_EPOCHS,
+        dataloader=dataloader,
     )
 
     return
