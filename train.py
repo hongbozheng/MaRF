@@ -31,8 +31,10 @@ def train_epoch(
 
         optimizer.zero_grad()
         embs = model(tokens=src, mask=src_mask, input_pos=None)
-        print(embs.size())
-        loss = criterion(query=embs[0], pos_key=embs[1], neg_key=embs[2])
+        query = embs[:, 0]
+        pos_key = embs[:, 1]
+        neg_key = embs[: 2:]
+        loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
         # print(loss)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
