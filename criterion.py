@@ -23,7 +23,11 @@ class InfoNCE(nn.Module):
         neg_key = F.normalize(input=neg_key, p=2.0, dim=-1, eps=1e-12)
 
         pos_logit = torch.sum(query*pos_key, dim=1, keepdim=True)
+
+        query = query.unsqueeze(dim=1)
         neg_logit = query @ neg_key.transpose(dim0=-2, dim1=-1)
+        neg_logit = neg_logit.squeeze(dim=1)
+
         logits = torch.cat(tensors=[pos_logit, neg_logit], dim=1)
         labels = torch.zeros(
             logits.size(dim=0),
