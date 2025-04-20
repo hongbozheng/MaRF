@@ -36,7 +36,7 @@ _C.CKPT = CN()
 """ Model """
 _C.CKPT.DIR = "models"
 
-""" Mamba """
+""" Transformer """
 _C.CKPT.TX = CN()
 _C.CKPT.TX.BEST = _C.CKPT.DIR + "/tx_best.ckpt"
 _C.CKPT.TX.LAST = _C.CKPT.DIR + "/tx_last.ckpt"
@@ -102,7 +102,6 @@ _C.DATA = CN()
 _C.DATA.DATA_DIR = "data"
 _C.DATA.VOCAB_FILE = _C.DATA.DATA_DIR + "/vocabs.txt"
 _C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
-_C.DATA.TRAIN_FILE = _C.DATA.DATA_DIR + "/expr_pairs.txt"
 _C.DATA.VAL_FILE = _C.DATA.DATA_DIR + "/exprs_val.txt"
 
 
@@ -113,7 +112,7 @@ _C.LOADER = CN()
 
 """ Train DataLoader """
 _C.LOADER.TRAIN = CN()
-_C.LOADER.TRAIN.BATCH_SIZE = 4
+_C.LOADER.TRAIN.BATCH_SIZE = 128
 _C.LOADER.TRAIN.SHUFFLE = False
 _C.LOADER.TRAIN.NUM_WORKERS = 1
 _C.LOADER.TRAIN.PIN_MEMORY = True
@@ -154,11 +153,6 @@ _C.TRAIN.MAX_NORM = 4.0
 _C.VAL = CN()
 
 """ Validation """
-START = 25.0
-END = 75.0
-N = 3
-TOL = 1e-10
-SECS = 10
 
 
 def get_config(args):

@@ -31,9 +31,11 @@ def train_epoch(
 
         optimizer.zero_grad()
         embs = model(tokens=src, mask=src_mask, input_pos=None)
-        query = embs[:, 0]
-        pos_key = embs[:, 1]
-        neg_key = embs[:, 2:]
+        embs = embs[:, 0, :]
+        embs = embs.view(-1, 5, embs.size(dim=-1))
+        query = embs[:, 0, :]
+        pos_key = embs[:, 1, :]
+        neg_key = embs[:, 2:, :]
         loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
         # print(loss)
         loss.backward()

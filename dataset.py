@@ -16,7 +16,7 @@ class ARQMath(Dataset):
 
         file = open(file=file_path, mode='r', encoding='utf-8')
         for line in file:
-            expr = line.strip()
+            expr = line.strip().split(sep='\t')
             self.exprs.append(expr)
         file.close()
 
@@ -25,14 +25,17 @@ class ARQMath(Dataset):
     def __len__(self) -> int:
         return len(self.exprs)
 
-    def __getitem__(self, idx: int) -> Dict[str, Tensor]:
-        expr = self.exprs[idx]
+    def __getitem__(self, idx: int) -> Dict[str, List[Tensor]]:
+        src = self.exprs[idx]
+        src_tokens = [self.tokenizer.encode(expr=expr) for expr in src]
 
-        src_tokens = self.tokenizer.encode(expr=expr)
         return {"src": src_tokens}
 
-    def collate_fn(self, batch: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
-        src = [item['src'] for item in batch]
+    def collate_fn(
+            self,
+            batch: List[Dict[str, List[Tensor]]],
+    ) -> Dict[str, Tensor]:
+        src = [expr for item in batch for expr in item["src"]]
         src = pad_sequence(
             sequences=src,
             batch_first=True,
