@@ -6,7 +6,7 @@ from criterion import InfoNCE
 from dataset import ARQMath
 from tokenizer import Tokenizer
 from torch.optim.adamw import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 from train import train_model
 from transformer import Transformer
@@ -30,9 +30,13 @@ def main() -> None:
         collate_fn=arqmath.collate_fn,
         pin_memory=cfg.LOADER.TRAIN.PIN_MEMORY,
     )
+    # for batch in dataloader:
+    #     src = batch["src"]
+    #     print(src.shape)
+    # return
 
     math_enc = Transformer(
-        vocab_size=cfg.MODEL.TX.VOCAB_SIZE,
+        vocab_size=len(tokenizer.vocabs),
         dim=cfg.MODEL.TX.DIM,
         n_layers=cfg.MODEL.TX.N_LAYERS,
         n_heads=cfg.MODEL.TX.N_HEADS,
@@ -50,12 +54,19 @@ def main() -> None:
         weight_decay=cfg.OPTIM.ADAMW.WEIGHT_DECAY,
     )
 
-    lr_scheduler = CosineAnnealingWarmRestarts(
+    # lr_scheduler = CosineAnnealingWarmRestarts(
+    #     optimizer=optimizer,
+    #     T_0=cfg.LRS.CAWR.T_0,
+    #     T_mult=cfg.LRS.CAWR.T_MULT,
+    #     eta_min=cfg.LRS.CAWR.ETA_MIN,
+    #     last_epoch=cfg.LRS.CAWR.LAST_EPOCH,
+    # )
+
+    lr_scheduler = CosineAnnealingLR(
         optimizer=optimizer,
-        T_0=cfg.LRS.CAWR.T_0,
-        T_mult=cfg.LRS.CAWR.T_MULT,
-        eta_min=cfg.LRS.CAWR.ETA_MIN,
-        last_epoch=cfg.LRS.CAWR.LAST_EPOCH,
+        T_max=cfg.LRS.CA.T_MAX,
+        eta_min=cfg.LRS.CA.ETA_MIN,
+        last_epoch=cfg.LRS.CA.LAST_EPOCH,
     )
 
     criterion = InfoNCE(

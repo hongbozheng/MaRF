@@ -30,7 +30,7 @@ def train_epoch(
         src_mask = batch["src_mask"].to(device=device)
 
         optimizer.zero_grad()
-        embs = model(tokens=src, mask=src_mask, input_pos=None)
+        embs = model(tokens=src, mask=src_mask, cache_pos=None)
         embs = embs[:, 0, :]
         embs = embs.view(-1, 5, embs.size(dim=-1))
         query = embs[:, 0, :]
