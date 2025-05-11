@@ -22,11 +22,11 @@ class RotaryEmbedding(nn.Module):
     def forward(self, pos_ids: Tensor) -> Tensor:
         # [D/2] -> [1, D/2, 1] -> [B, D/2, 1]
         inv_freq_expanded = self.inv_freq[None, :, None].float().expand(pos_ids.shape[0], -1, 1)
-        # [B, S] -> [B, 1, S]
+        # [B, L] -> [B, 1, L]
         pos_ids_expanded = pos_ids[:, None, :].float()
-        # [B, D/2, 1] @ [B, 1, S] -> [B, D/2, S] -> [B, S, D/2]
+        # [B, D/2, 1] @ [B, 1, L] -> [B, D/2, L] -> [B, L, D/2]
         freqs = (inv_freq_expanded @ pos_ids_expanded).transpose(dim0=1, dim1=2)
-        # [B, S, D/2]
+        # [B, L, D/2]
         freqs_cis = torch.polar(abs=torch.ones_like(input=freqs), angle=freqs)
 
         return freqs_cis
@@ -37,15 +37,15 @@ def apply_rotary_emb(
         k: Tensor,
         freq_cis: Tensor,
 ) -> Tuple[Tensor, Tensor]:
-    # [B, S, H, H_D] -> [B, S, H, H_D/2, 2]
+    # [B, L, H, H_D] -> [B, L, H, H_D/2, 2]
     q_ = torch.view_as_complex(input=q.float().reshape(*q.shape[:-1], -1, 2))
-    # [B, S, H, H_D] -> [B, S, H, H_D/2, 2]
+    # [B, L, H, H_D] -> [B, L, H, H_D/2, 2]
     k_ = torch.view_as_complex(input=k.float().reshape(*k.shape[:-1], -1, 2))
-    # [B, S, H, H_D/2, 2] *  [B, S, H, H_D/2, 2] -> [B, S, H, H_D/2, 2]
-    # [B, S, H, H_D/2, 2] -> [B, S, H, H_D/2, 2] -> [B, S, D]
+    # [B, L, H, H_D/2, 2] *  [B, L, H, H_D/2, 2] -> [B, L, H, H_D/2, 2]
+    # [B, L, H, H_D/2, 2] -> [B, L, H, H_D/2, 2] -> [B, L, D]
     q_out = torch.view_as_real(input=q_ * freq_cis[:, :, None, :]).flatten(start_dim=3)
-    # [B, S, H, H_D/2, 2] *  [B, S, H, H_D/2, 2] -> [B, S, H, H_D/2, 2]
-    # [B, S, H, H_D/2, 2] -> [B, S, H, H_D]
+    # [B, L, H, H_D/2, 2] *  [B, L, H, H_D/2, 2] -> [B, L, H, H_D/2, 2]
+    # [B, L, H, H_D/2, 2] -> [B, L, H, H_D]
     k_out = torch.view_as_real(input=k_ * freq_cis[:, :, None, :]).flatten(start_dim=3)
 
     return q_out.type_as(q), k_out.type_as(k)
@@ -102,50 +102,50 @@ class Attention(nn.Module):
             mask: Optional[Tensor],
             cache_pos: Optional[Tensor],
     ) -> Tensor:
-        # [B, S, D]
+        # [B, L, D]
         batch_size, seq_len, _ = x.shape
-        # [B, S, D] -> [B, S,  H_Q * D_H]
+        # [B, L, D] -> [B, L, H_Q * D_H]
         q = self.wq(x)
-        # [B, S, D] -> [B, S, H_KV * D_H]
+        # [B, L, D] -> [B, L, H_KV * D_H]
         k = self.wk(x)
-        # [B, S, D] -> [B, S, H_KV * D_H]
+        # [B, L, D] -> [B, L, H_KV * D_H]
         v = self.wv(x)
 
-        # [B, S,  H_Q * D_H] -> [B, S,  H_Q, D_H]
+        # [B, L, H_Q * D_H] -> [B, L, H_Q, D_H]
         q = q.view(batch_size, seq_len, self.n_q_heads, self.head_dim)
-        # [B, S, H_KV * D_H] -> [B, S, H_KV, D_H]
+        # [B, L, H_KV * D_H] -> [B, L, H_KV, D_H]
         k = k.view(batch_size, seq_len, self.n_kv_heads, self.head_dim)
-        # [B, S, H_KV * D_H] -> [B, S, H_KV, D_H]
+        # [B, L, H_KV * D_H] -> [B, L, H_KV, D_H]
         v = v.view(batch_size, seq_len, self.n_kv_heads, self.head_dim)
 
         q, k = apply_rotary_emb(q=q, k=k, freq_cis=pos_emb)
 
-        # # [B, S,  H_Q * D_H] -> [B, S,  H_Q, D_H]
+        # # [B, L, H_Q * D_H] -> [B, L, H_Q, D_H]
         # q = self.rope(x=q, input_pos=input_pos)
-        # # [B, S, H_KV * D_H] -> [B, S, H_KV, D_H]
+        # # [B, L, H_KV * D_H] -> [B, L, H_KV, D_H]
         # k = self.rope(x=k, input_pos=input_pos)
 
-        # [B, S, H_Q, D_H] -> [B, H_Q, S, D_H]
+        # [B, L, H_Q, D_H] -> [B, H_Q, L, D_H]
         q = q.transpose(dim0=1, dim1=2)
-        # [B, S_KV, H_Q, D_H] -> [B, H_Q, S_KV, D_H]
+        # [B, L_KV, H_Q, D_H] -> [B, H_Q, L_KV, D_H]
         k = k.transpose(dim0=1, dim1=2)
-        # [B, S_KV, H_Q, D_H] -> [B, H_Q, S_KV, D_H]
+        # [B, L_KV, H_Q, D_H] -> [B, H_Q, L_KV, D_H]
         v = v.transpose(dim0=1, dim1=2)
 
-        # [B, H_Q, S, D_H] @ [B, H_Q, D_H, S_KV] -> [B, H_Q, S, S_KV]
+        # [B, H_Q, L, D_H] @ [B, H_Q, D_H, L_KV] -> [B, H_Q, L, L_KV]
         scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.head_dim)
         if mask is not None:
             scores.masked_fill_(mask=mask, value=float('-inf'))
         scores = F.softmax(input=scores.float(), dim=-1).type_as(q)
 
-        # [B, H_Q, S, S_KV] @ [B, H_Q, S_KV, D_H] -> [B, H_Q, S, D_H]
+        # [B, H_Q, L, L_KV] @ [B, H_Q, L_KV, D_H] -> [B, H_Q, L, D_H]
         output = scores @ v
 
-        # [B, H_Q, S, D_H] -> [B, S, H_Q, D_H] -> [B, S, D]
+        # [B, H_Q, L, D_H] -> [B, L, H_Q, D_H] -> [B, L, D]
         output = output.transpose(dim0=1, dim1=2).contiguous()\
             .view(batch_size, seq_len, -1)
 
-        # [B, S, D] -> [B, S, D]
+        # [B, L, D] -> [B, L, D]
         output = self.wo(output)
 
         return output
@@ -190,13 +190,13 @@ class RMSNorm(nn.Module):
         return
 
     def _norm(self, x: Tensor) -> Tensor:
-        # [B, S, D] * [B, S, 1] = [B, S, D]
+        # [B, L, D] * [B, L, 1] = [B, L, D]
         return x * torch.rsqrt(
             input=x.pow(exponent=2).mean(dim=-1, keepdim=True) + self.eps,
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        # [D] * [B, S, D] = [B, S, D]
+        # [D] * [B, L, D] = [B, L, D]
         return self.weight * self._norm(x=x)
 
 
@@ -240,7 +240,7 @@ class EncoderBlock(nn.Module):
             mask: Optional[Tensor],
             cache_pos: Optional[Tensor],
     ) -> Tensor:
-        # [B, S, D] + [B, S, D] -> [B, S, D]
+        # [B, L, D] + [B, L, D] -> [B, L, D]
         h = x + self.attention.forward(
             x=self.attention_norm(x),
             pos_emb=pos_emb,
@@ -307,7 +307,7 @@ class Transformer(nn.Module):
             mask: Tensor,
             cache_pos: Optional[Tensor],
     ) -> Tensor:
-        # [B, S] -> [B, S, D]
+        # [B, L] -> [B, L, D]
         h = self.tok_embeddings(tokens)
 
         pos_ids = torch.arange(
@@ -355,16 +355,16 @@ class Transformer(nn.Module):
 
 #     def forward(self, x: Tensor, input_pos: Optional[Tensor]) -> Tensor:
 #         seq_len = x.size(dim=1)
-#         # [S, H_D/2, 2]
+#         # [L, H_D/2, 2]
 #         rope_cache = self.cache[:seq_len] if input_pos is None \
 #             else self.cache[input_pos]
-#         # [B, S, H, H_D] -> [B, S, H, H_D/2, 2]
+#         # [B, L, H, H_D] -> [B, L, H, H_D/2, 2]
 #         xshaped = x.float().reshape(*x.shape[:-1], -1, 2)
-#         # [S, H_D/2, 2] -> [1, S, 1, H_D/2, 2]
+#         # [L, H_D/2, 2] -> [1, L, 1, H_D/2, 2]
 #         rope_cache = rope_cache.view(
 #             -1, xshaped.size(dim=1), 1, xshaped.size(dim=3), 2
 #         )
-#         # [B, S, H, H_D/2, 2]
+#         # [B, L, H, H_D/2, 2]
 #         x_out = torch.stack(
 #             tensors=[
 #                 xshaped[..., 0] * rope_cache[..., 0]
@@ -374,7 +374,7 @@ class Transformer(nn.Module):
 #             ],
 #             dim=-1,
 #         )
-#         # [B, S, H, H_D/2, 2] -> [B, S, H, H_D]
+#         # [B, L, H, H_D/2, 2] -> [B, L, H, H_D]
 #         x_out = x_out.flatten(start_dim=3)
 
 #         return x_out.type_as(x)
