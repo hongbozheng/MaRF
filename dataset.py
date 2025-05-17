@@ -1,5 +1,4 @@
 from torch import Tensor
-from typing import Dict, List
 
 import torch
 from tokenizer import Tokenizer
@@ -23,7 +22,7 @@ class ARQMath(Dataset):
     def __len__(self) -> int:
         return len(self.exprs)
 
-    def __getitem__(self, idx: int) -> Dict[str, List[Tensor]]:
+    def __getitem__(self, idx: int) -> dict[str, list[Tensor]]:
         src = self.exprs[idx]
         src_tokens = [self.tokenizer.encode(expr=expr) for expr in src]
 
@@ -31,8 +30,8 @@ class ARQMath(Dataset):
 
     def collate_fn(
             self,
-            batch: List[Dict[str, List[Tensor]]],
-    ) -> Dict[str, Tensor]:
+            batch: list[dict[str, list[Tensor]]],
+    ) -> dict[str, Tensor]:
         src = [expr for item in batch for expr in item["src"]]
         src = pad_sequence(
             sequences=src,
