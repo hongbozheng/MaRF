@@ -22,7 +22,7 @@ _C.MODEL.TX.N_LAYERS = 6
 _C.MODEL.TX.N_HEADS = 8
 _C.MODEL.TX.N_KV_HEADS = 8
 _C.MODEL.TX.BASE = 10000
-_C.MODEL.TX.MAX_SEQ_LEN = 2048
+_C.MODEL.TX.MAX_SEQ_LEN = 256
 _C.MODEL.TX.MULTIPLE_OF = 256
 _C.MODEL.TX.FFN_DIM_MULTIPLIER = None
 _C.MODEL.TX.NORM_EPS = 1e-5
@@ -50,6 +50,7 @@ _C.OPTIM = CN()
 """ AdamW """
 _C.OPTIM.ADAMW = CN()
 _C.OPTIM.ADAMW.LR = 1e-4
+_C.OPTIM.ADAMW.BETAS = (0.9, 0.999)
 _C.OPTIM.ADAMW.WEIGHT_DECAY = 1e-2
 
 
@@ -57,6 +58,11 @@ _C.OPTIM.ADAMW.WEIGHT_DECAY = 1e-2
 # Learning Rate Scheduler
 # -----------------------------------------------------------------------------
 _C.LRS = CN()
+
+""" CosineAnnealingWarmup """
+_C.LRS.CAW = CN()
+_C.LRS.CAW.N_WARMUP_STEPS = 2500
+_C.LRS.CAW.N_TRAIN_STEPS = ?  # n_epochs x n_batches_per_epoch
 
 """ CosineAnnealingWarmRestarts """
 _C.LRS.CAWR = CN()
@@ -66,10 +72,10 @@ _C.LRS.CAWR.ETA_MIN = 1e-8
 _C.LRS.CAWR.LAST_EPOCH = -1
 
 """ CosineAnnealingLR """
-_C.LRS.CALR = CN()
-_C.LRS.CALR.T_MAX = 50
-_C.LRS.CALR.ETA_MIN = 1e-8
-_C.LRS.CALR.LAST_EPOCH = -1
+_C.LRS.CA = CN()
+_C.LRS.CA.T_MAX = 10
+_C.LRS.CA.ETA_MIN = 1e-8
+_C.LRS.CA.LAST_EPOCH = -1
 
 
 # -----------------------------------------------------------------------------
@@ -82,16 +88,6 @@ _C.CRITERION.INFONCE = CN()
 _C.CRITERION.INFONCE.TEMPERATURE = 0.1
 _C.CRITERION.INFONCE.REDUCTION = "mean"
 
-""" SimCSE """
-_C.CRITERION.SIMCSE = CN()
-_C.CRITERION.SIMCSE.TEMPERATURE = 0.1
-_C.CRITERION.SIMCSE.REDUCTION = "mean"
-
-""" Contrastive Loss """
-_C.CRITERION.CL = CN()
-_C.CRITERION.CL.MARGIN = 1.0
-_C.CRITERION.CL.REDUCTION = "mean"
-
 
 # -----------------------------------------------------------------------------
 # Data
@@ -101,7 +97,8 @@ _C.DATA = CN()
 """ Formulas """
 _C.DATA.DATA_DIR = "data"
 _C.DATA.VOCAB_FILE = _C.DATA.DATA_DIR + "/vocabs.txt"
-_C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
+# _C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
+_C.DATA.FORMULA_FILE = "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_small.txt"
 _C.DATA.VAL_FILE = _C.DATA.DATA_DIR + "/exprs_val.txt"
 
 
@@ -112,7 +109,7 @@ _C.LOADER = CN()
 
 """ Train DataLoader """
 _C.LOADER.TRAIN = CN()
-_C.LOADER.TRAIN.BATCH_SIZE = 128
+_C.LOADER.TRAIN.BATCH_SIZE = 44
 _C.LOADER.TRAIN.SHUFFLE = False
 _C.LOADER.TRAIN.NUM_WORKERS = 1
 _C.LOADER.TRAIN.PIN_MEMORY = True
@@ -143,8 +140,9 @@ LOG_LEVEL = LogLevel.INFO
 _C.TRAIN = CN()
 
 """ Training """
-_C.TRAIN.N_EPOCHS = 50
-_C.TRAIN.MAX_NORM = 4.0
+_C.TRAIN.N_EPOCHS = 20
+_C.TRAIN.N_BATCHES = ?  # number of batches per epoch
+_C.TRAIN.MAX_NORM = 1.0
 
 
 # -----------------------------------------------------------------------------

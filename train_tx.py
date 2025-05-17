@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmResta
 from torch.utils.data import DataLoader
 from train import train_model
 from transformer import Transformer
+from transformers import get_cosine_schedule_with_warmup
 
 
 def main() -> None:
@@ -62,11 +63,17 @@ def main() -> None:
     #     last_epoch=cfg.LRS.CAWR.LAST_EPOCH,
     # )
 
-    lr_scheduler = CosineAnnealingLR(
-        optimizer=optimizer,
-        T_max=cfg.LRS.CA.T_MAX,
-        eta_min=cfg.LRS.CA.ETA_MIN,
-        last_epoch=cfg.LRS.CA.LAST_EPOCH,
+    # lr_scheduler = CosineAnnealingLR(
+    #     optimizer=optimizer,
+    #     T_max=cfg.LRS.CA.T_MAX,
+    #     eta_min=cfg.LRS.CA.ETA_MIN,
+    #     last_epoch=cfg.LRS.CA.LAST_EPOCH,
+    # )
+
+    lr_scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=cfg.LRS.CAW.N_WARMUP_STEPS,
+        num_training_steps=cfg.LRS.CAW.N_TRAIN_STEPS,
     )
 
     criterion = InfoNCE(
@@ -85,6 +92,7 @@ def main() -> None:
         device=DEVICE,
         n_epochs=cfg.TRAIN.N_EPOCHS,
         dataloader=dataloader,
+        save_every_n_steps=500,
     )
 
     return

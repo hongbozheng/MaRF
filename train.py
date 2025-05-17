@@ -7,25 +7,37 @@ from avg_meter import AverageMeter
 from logger import timestamp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from utils import train_params
 
 
 def train_epoch(
         model: nn.Module,
+        ckpt_last: str,
         optimizer: optim.Optimizer,
+        lr_scheduler,
         criterion: nn.Module,
         max_norm: float,
         device: torch.device,
         dataloader: DataLoader,
+        epoch: int,
+        init_batch: int,
+        save_every_n_steps: int
 ) -> float:
     model.train(mode=True)
 
     loader_tqdm = tqdm(iterable=dataloader, position=1, leave=False)
     loader_tqdm.set_description(desc=f"[{timestamp()}] [Batch 0]", refresh=True)
-    # print(optimizer.param_groups[0]["lr"])
 
     loss_meter = AverageMeter()
 
     for i, batch in enumerate(iterable=loader_tqdm):
+        if i < init_batch:
+            continue
+
+        curr_lr = lr_scheduler.get_last_lr()[0]
+        n_steps = epoch * len(dataloader) + (i+1)
+        loader_tqdm.write(f"[{timestamp()}] [Step {n_steps}] Current LR {curr_lr:.8f}")
+
         src = batch["src"].to(device=device)
         src_mask = batch["src_mask"].to(device=device)
 
@@ -37,10 +49,11 @@ def train_epoch(
         pos_key = embs[:, 1, :]
         neg_key = embs[:, 2:, :]
         loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
-        # print(loss)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
         optimizer.step()
+        lr_scheduler.step()
+
         loss_meter.update(loss.item(), n=src.size(dim=0))
 
         loader_tqdm.set_description(
@@ -48,6 +61,26 @@ def train_epoch(
                  f"train loss {loss_meter.avg:.6f}",
             refresh=True,
         )
+
+        if (i + 1) % save_every_n_steps == 0:
+            curr_lr = lr_scheduler.get_last_lr()[0]
+            n_steps = epoch * len(dataloader) + (i+1)
+            loader_tqdm.write(f"[{timestamp()}] [Step {n_steps}] Current LR {curr_lr:.8f}")
+            torch.save(
+                {
+                    "model_state": model.state_dict(),
+                    "optimizer_state": optimizer.state_dict(),
+                    "lr_scheduler_state": lr_scheduler.state_dict(),
+                    "epoch": epoch,
+                    "batch": i,
+                    "loss": loss,
+                },
+                ckpt_last,
+            )
+            loader_tqdm.write(
+                s=f"[{timestamp()}] [Epoch {epoch}] [Batch {i}] Saved model to "
+                  f"`{ckpt_last}`"
+            )
 
     return loss_meter.avg
 
@@ -63,15 +96,20 @@ def train_model(
         device: torch.device,
         n_epochs: int,
         dataloader: DataLoader,
+        save_every_n_steps: int,
 ) -> None:
-    model.to(device=device)
-    model.train(mode=True)
-
     path, _ = os.path.split(p=ckpt_last)
     if not os.path.exists(path=path):
         os.makedirs(name=path, exist_ok=True)
 
+    model.to(device=device)
+    model.train(mode=True)
+
+    params = train_params(model=model)
+    logger.log_info(f"Total trainable parameters {params * 1e-6}M")
+
     init_epoch = 0
+    init_batch = 0
     best_loss = float('inf')
     avg_losses = []  # TODO: Store train losses & val acc in JSON?
 
@@ -80,7 +118,8 @@ def train_model(
         model.load_state_dict(state_dict=ckpt["model_state"])
         optimizer.load_state_dict(state_dict=ckpt["optimizer_state"])
         lr_scheduler.load_state_dict(state_dict=ckpt["lr_scheduler_state"])
-        init_epoch = ckpt["epoch"]+1
+        init_batch = ckpt["batch"]+1
+        init_epoch = ckpt["epoch"]+1 if init_batch == 0 else ckpt["epoch"]
         best_loss = ckpt["best_loss"]
         filename = os.path.basename(p=ckpt_last)
         logger.log_info(f"Loaded `{filename}`.")
@@ -99,43 +138,49 @@ def train_model(
         )
         avg_loss = train_epoch(
             model=model,
+            ckpt_last=ckpt_last,
             optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
             criterion=criterion,
             max_norm=max_norm,
             device=device,
             dataloader=dataloader,
+            epoch=epoch,
+            init_batch=init_batch,
+            save_every_n_steps=save_every_n_steps,
         )
 
-        lr_scheduler.step()
+        init_batch = 0
 
         epoch_tqdm.write(
-            s=f"[{timestamp()}] [Epoch {epoch}]: loss {avg_loss:.6f}"
+            s=f"[{timestamp()}] [Epoch {epoch}] loss {avg_loss:.6f}"
         )
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            torch.save(
-                obj={
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "lr_scheduler": lr_scheduler.state_dict(),
-                    "epoch": epoch,
-                    "best_loss": best_loss,
-                },
-                f=ckpt_best,
-            )
-            epoch_tqdm.write(
-                s=f"[{timestamp()}] [Epoch {epoch}]: Saved best model to "
-                  f"`{ckpt_best}`"
-            )
+        # if avg_loss < best_loss:
+        #     best_loss = avg_loss
+        #     torch.save(
+        #         obj={
+        #             "model": model.state_dict(),
+        #             "optimizer": optimizer.state_dict(),
+        #             "lr_scheduler": lr_scheduler.state_dict(),
+        #             "epoch": epoch,
+        #             "best_loss": best_loss,
+        #         },
+        #         f=ckpt_best,
+        #     )
+        #     epoch_tqdm.write(
+        #         s=f"[{timestamp()}] [Epoch {epoch}]: Saved best model to "
+        #           f"`{ckpt_best}`"
+        #     )
 
         torch.save(
-            obj={
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "lr_scheduler": lr_scheduler.state_dict(),
+            {
+                "model_state": model.state_dict(),
+                "optimizer_state": optimizer.state_dict(),
+                "lr_scheduler_state": lr_scheduler.state_dict(),
                 "epoch": epoch,
-                "best_loss": best_loss,
+                "batch": -1,
+                "best_loss": avg_loss,
             },
-            f=ckpt_last,
+            ckpt_last,
         )
