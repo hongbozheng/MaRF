@@ -20,8 +20,6 @@ class Tokenizer:
         self.word2idx = {w: i for i, w in enumerate(self.vocabs)}
         self.idx2word = {i: w for i, w in enumerate(self.vocabs)}
 
-        return
-
     def encode(self, expr: str) -> Tensor:
         tokens = []
 

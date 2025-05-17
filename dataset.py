@@ -20,8 +20,6 @@ class ARQMath(Dataset):
             self.exprs.append(expr)
         file.close()
 
-        return
-
     def __len__(self) -> int:
         return len(self.exprs)
 

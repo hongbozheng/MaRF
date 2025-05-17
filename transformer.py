@@ -1,5 +1,5 @@
 from torch import Tensor
-from typing import Optional, Tuple
+from typing import Optional
 
 import math
 import torch
@@ -15,8 +15,6 @@ class RotaryEmbedding(nn.Module):
             torch.arange(start=0, end=dim, step=2, dtype=torch.float32) / dim
         ))
         self.register_buffer(name="inv_freq", tensor=inv_freq, persistent=False)
-
-        return
 
     @torch.no_grad()
     def forward(self, pos_ids: Tensor) -> Tensor:
@@ -36,7 +34,7 @@ def apply_rotary_emb(
         q: Tensor,
         k: Tensor,
         freq_cis: Tensor,
-) -> Tuple[Tensor, Tensor]:
+) -> tuple[Tensor, Tensor]:
     # [B, L, H, H_D] -> [B, L, H, H_D/2, 2]
     q_ = torch.view_as_complex(input=q.float().reshape(*q.shape[:-1], -1, 2))
     # [B, L, H, H_D] -> [B, L, H, H_D/2, 2]
@@ -92,8 +90,6 @@ class Attention(nn.Module):
         #     base=base,
         #     max_seq_len=max_seq_len,
         # )
-
-        return
 
     def forward(
             self,
@@ -176,8 +172,6 @@ class FeedForward(nn.Module):
             in_features=hidden_dim, out_features=dim, bias=False
         )
 
-        return
-
     def forward(self, x: Tensor) -> Tensor:
         return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
 
@@ -187,7 +181,6 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
-        return
 
     def _norm(self, x: Tensor) -> Tensor:
         # [B, L, D] * [B, L, 1] = [B, L, D]
@@ -230,8 +223,6 @@ class EncoderBlock(nn.Module):
 
         self.attention_norm = RMSNorm(dim=dim, eps=norm_eps)
         self.ffn_norm = RMSNorm(dim=dim, eps=norm_eps)
-
-        return
 
     def forward(
             self,
@@ -298,8 +289,6 @@ class Transformer(nn.Module):
         # self.output = nn.Linear(
         #     in_features=dim, out_features=vocab_size, bias=False
         # )
-
-        return
 
     def forward(
             self,

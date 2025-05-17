@@ -10,7 +10,6 @@ class InfoNCE(nn.Module):
         super().__init__()
         self.temperature = temperature
         self.reduction = reduction
-        return
 
     def forward(
             self,

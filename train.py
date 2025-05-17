@@ -63,7 +63,7 @@ def train_model(
         device: torch.device,
         n_epochs: int,
         dataloader: DataLoader,
-):
+) -> None:
     model.to(device=device)
     model.train(mode=True)
 
@@ -139,5 +139,3 @@ def train_model(
             },
             f=ckpt_last,
         )
-
-    return
