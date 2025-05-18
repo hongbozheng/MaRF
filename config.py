@@ -61,8 +61,8 @@ _C.LRS = CN()
 
 """ CosineAnnealingWarmup """
 _C.LRS.CAW = CN()
-_C.LRS.CAW.N_WARMUP_STEPS = 2500
-_C.LRS.CAW.N_TRAIN_STEPS = ?  # n_epochs x n_batches_per_epoch
+_C.LRS.CAW.N_WARMUP_STEPS = 5000
+_C.LRS.CAW.N_TRAIN_STEPS = 20 * 24024  # n_epochs x n_batches_per_epoch
 
 """ CosineAnnealingWarmRestarts """
 _C.LRS.CAWR = CN()
@@ -88,6 +88,11 @@ _C.CRITERION.INFONCE = CN()
 _C.CRITERION.INFONCE.TEMPERATURE = 0.1
 _C.CRITERION.INFONCE.REDUCTION = "mean"
 
+""" MaxSim """
+_C.CRITERION.MAXSIM = CN()
+_C.CRITERION.MAXSIM.TEMPERATURE = 0.1
+_C.CRITERION.MAXSIM.REDUCTION = "mean"
+
 
 # -----------------------------------------------------------------------------
 # Data
@@ -109,7 +114,7 @@ _C.LOADER = CN()
 
 """ Train DataLoader """
 _C.LOADER.TRAIN = CN()
-_C.LOADER.TRAIN.BATCH_SIZE = 44
+_C.LOADER.TRAIN.BATCH_SIZE = 52
 _C.LOADER.TRAIN.SHUFFLE = False
 _C.LOADER.TRAIN.NUM_WORKERS = 1
 _C.LOADER.TRAIN.PIN_MEMORY = True
@@ -141,8 +146,9 @@ _C.TRAIN = CN()
 
 """ Training """
 _C.TRAIN.N_EPOCHS = 20
-_C.TRAIN.N_BATCHES = ?  # number of batches per epoch
+_C.TRAIN.N_BATCHES = 24024  # number of batches per epoch
 _C.TRAIN.MAX_NORM = 1.0
+_C.TRAIN.SAVE_N_STEPS = 500
 
 
 # -----------------------------------------------------------------------------

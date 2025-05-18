@@ -34,20 +34,33 @@ def train_epoch(
         if i < init_batch:
             continue
 
-        curr_lr = lr_scheduler.get_last_lr()[0]
-        n_steps = epoch * len(dataloader) + (i+1)
-        loader_tqdm.write(f"[{timestamp()}] [Step {n_steps}] Current LR {curr_lr:.8f}")
-
         src = batch["src"].to(device=device)
         src_mask = batch["src_mask"].to(device=device)
 
         optimizer.zero_grad()
         embs = model(tokens=src, mask=src_mask, cache_pos=None)
+
+        # ----------- max sim -----------
+        # # print("emb", embs.size())
+        # print(src_mask.shape)
+        # src_mask = src_mask.squeeze(dim=(-3, -2))
+        # embs[src_mask] = -9999
+        # # print(embs)
+        # embs = embs.view(-1, 5, embs.size(dim=-2), embs.size(dim=-1))
+        # # print(embs.shape)
+        # query = embs[:, 0, :, :]
+        # pos_key = embs[:, 1, :, :]
+        # neg_key = embs[:, 2:, :, :]
+        # -------------------------------
+
+        # ---------- 1st token ----------
         embs = embs[:, 0, :]
         embs = embs.view(-1, 5, embs.size(dim=-1))
         query = embs[:, 0, :]
         pos_key = embs[:, 1, :]
         neg_key = embs[:, 2:, :]
+        # -------------------------------
+
         loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)

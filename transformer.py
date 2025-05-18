@@ -123,18 +123,18 @@ class Attention(nn.Module):
 
         # [B, L, H_Q, D_H] -> [B, H_Q, L, D_H]
         q = q.transpose(dim0=1, dim1=2)
-        # [B, L_KV, H_Q, D_H] -> [B, H_Q, L_KV, D_H]
+        # [B, L, H_KV, D_H] -> [B, H_KV, L, D_H]
         k = k.transpose(dim0=1, dim1=2)
-        # [B, L_KV, H_Q, D_H] -> [B, H_Q, L_KV, D_H]
+        # [B, L, H_KV, D_H] -> [B, H_KV, L, D_H]
         v = v.transpose(dim0=1, dim1=2)
 
-        # [B, H_Q, L, D_H] @ [B, H_Q, D_H, L_KV] -> [B, H_Q, L, L_KV]
+        # [B, H_Q, L, D_H] @ [B, H_KV, D_H, L] -> [B, H_Q, L, L]
         scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.head_dim)
         if mask is not None:
             scores.masked_fill_(mask=mask, value=float('-inf'))
         scores = F.softmax(input=scores.float(), dim=-1).type_as(q)
 
-        # [B, H_Q, L, L_KV] @ [B, H_Q, L_KV, D_H] -> [B, H_Q, L, D_H]
+        # [B, H_Q, L, L] @ [B, H_KV, L, D_H] -> [B, H_Q, L, D_H]
         output = scores @ v
 
         # [B, H_Q, L, D_H] -> [B, L, H_Q, D_H] -> [B, L, D]
