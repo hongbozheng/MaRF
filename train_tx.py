@@ -76,15 +76,15 @@ def main() -> None:
         num_training_steps=cfg.LRS.CAW.N_TRAIN_STEPS,
     )
 
-    criterion = InfoNCE(
-        temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
-        reduction=cfg.CRITERION.INFONCE.REDUCTION,
-    )
-
-    # criterion = MaxSim(
+    # criterion = InfoNCE(
     #     temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
     #     reduction=cfg.CRITERION.INFONCE.REDUCTION,
     # )
+
+    criterion = MaxSim(
+        temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
+        reduction=cfg.CRITERION.INFONCE.REDUCTION,
+    )
 
     train_model(
         model=math_enc,

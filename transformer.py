@@ -131,7 +131,7 @@ class Attention(nn.Module):
         # [B, H_Q, L, D_H] @ [B, H_KV, D_H, L] -> [B, H_Q, L, L]
         scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.head_dim)
         if mask is not None:
-            scores.masked_fill_(mask=mask, value=float('-inf'))
+            scores.masked_fill(mask=mask, value=float('-inf'))
         scores = F.softmax(input=scores.float(), dim=-1).type_as(q)
 
         # [B, H_Q, L, L] @ [B, H_KV, L, D_H] -> [B, H_Q, L, D_H]

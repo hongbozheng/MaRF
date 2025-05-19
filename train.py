@@ -27,7 +27,7 @@ def train_epoch(
 
     loader_tqdm = tqdm(iterable=dataloader, position=1, leave=False)
     loader_tqdm.set_description(desc=f"[{timestamp()}] [Batch 0]", refresh=True)
-
+    torch.autograd.set_detect_anomaly(True)
     loss_meter = AverageMeter()
 
     for i, batch in enumerate(iterable=loader_tqdm):
@@ -41,27 +41,44 @@ def train_epoch(
         embs = model(tokens=src, mask=src_mask, cache_pos=None)
 
         # ----------- max sim -----------
-        # # print("emb", embs.size())
-        # print(src_mask.shape)
-        # src_mask = src_mask.squeeze(dim=(-3, -2))
-        # embs[src_mask] = -9999
-        # # print(embs)
-        # embs = embs.view(-1, 5, embs.size(dim=-2), embs.size(dim=-1))
-        # # print(embs.shape)
-        # query = embs[:, 0, :, :]
-        # pos_key = embs[:, 1, :, :]
-        # neg_key = embs[:, 2:, :, :]
+        src_mask = src_mask.squeeze(dim=(-3, -2))
+        n_pad = src_mask.int().sum(dim=-1)
+        eoe_ids = src_mask.size(dim=-1) - n_pad - 1
+        batch_ids = torch.arange(
+            start=0, end=src_mask.size(dim=0), dtype=torch.int64, device=src_mask.device
+        )
+        src_mask[batch_ids, eoe_ids] = True
+        src_mask[:, 0] = True
+
+        embs = embs.view(-1, 5, embs.size(dim=-2), embs.size(dim=-1))
+        src_mask = src_mask.view(-1, 5, src_mask.size(dim=-1))
+
+        query = embs[:, 0, :, :]
+        pos_key = embs[:, 1, :, :]
+        neg_key = embs[:, 2:, :, :]
+        query_mask = src_mask[:, 0]
+        pos_mask = src_mask[:, 1]
+        neg_mask = src_mask[:, 2:]
+
+        loss = criterion(
+            query=query,
+            query_mask=query_mask,
+            pos_key=pos_key,
+            pos_mask=pos_mask,
+            neg_key=neg_key,
+            neg_mask=neg_mask,
+        )
         # -------------------------------
 
         # ---------- 1st token ----------
-        embs = embs[:, 0, :]
-        embs = embs.view(-1, 5, embs.size(dim=-1))
-        query = embs[:, 0, :]
-        pos_key = embs[:, 1, :]
-        neg_key = embs[:, 2:, :]
+        # embs = embs[:, 0, :]
+        # embs = embs.view(-1, 5, embs.size(dim=-1))
+        # query = embs[:, 0, :]
+        # pos_key = embs[:, 1, :]
+        # neg_key = embs[:, 2:, :]
+        # loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
         # -------------------------------
 
-        loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
         optimizer.step()
@@ -133,7 +150,7 @@ def train_model(
         lr_scheduler.load_state_dict(state_dict=ckpt["lr_scheduler_state"])
         init_batch = ckpt["batch"]+1
         init_epoch = ckpt["epoch"]+1 if init_batch == 0 else ckpt["epoch"]
-        best_loss = ckpt["best_loss"]
+        best_loss = ckpt["loss"]
         filename = os.path.basename(p=ckpt_last)
         logger.log_info(f"Loaded `{filename}`.")
 
@@ -193,7 +210,7 @@ def train_model(
                 "lr_scheduler_state": lr_scheduler.state_dict(),
                 "epoch": epoch,
                 "batch": -1,
-                "best_loss": avg_loss,
+                "loss": avg_loss,
             },
             ckpt_last,
         )
