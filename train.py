@@ -40,7 +40,7 @@ def train_epoch(
         optimizer.zero_grad()
         embs = model(tokens=src, mask=src_mask, cache_pos=None)
 
-        # ----------- max sim -----------
+        # ---------- mean pool ----------
         src_mask = src_mask.squeeze(dim=(-3, -2))
         n_pad = src_mask.int().sum(dim=-1)
         eoe_ids = src_mask.size(dim=-1) - n_pad - 1
@@ -50,24 +50,49 @@ def train_epoch(
         src_mask[batch_ids, eoe_ids] = True
         src_mask[:, 0] = True
 
-        embs = embs.view(-1, 5, embs.size(dim=-2), embs.size(dim=-1))
-        src_mask = src_mask.view(-1, 5, src_mask.size(dim=-1))
+        embs[src_mask] = 0.0
+        embs = embs.mean(dim=-2, keepdim=False)
+        embs = embs.view(-1, 5, embs.size(dim=-1))
 
-        query = embs[:, 0, :, :]
-        pos_key = embs[:, 1, :, :]
-        neg_key = embs[:, 2:, :, :]
-        query_mask = src_mask[:, 0]
-        pos_mask = src_mask[:, 1]
-        neg_mask = src_mask[:, 2:]
+        query = embs[:, 0, :]
+        pos_key = embs[:, 1, :]
+        neg_key = embs[:, 2:, :]
 
         loss = criterion(
             query=query,
-            query_mask=query_mask,
             pos_key=pos_key,
-            pos_mask=pos_mask,
             neg_key=neg_key,
-            neg_mask=neg_mask,
         )
+        # -------------------------------
+
+        # ----------- max sim -----------
+        # src_mask = src_mask.squeeze(dim=(-3, -2))
+        # n_pad = src_mask.int().sum(dim=-1)
+        # eoe_ids = src_mask.size(dim=-1) - n_pad - 1
+        # batch_ids = torch.arange(
+        #     start=0, end=src_mask.size(dim=0), dtype=torch.int64, device=src_mask.device
+        # )
+        # src_mask[batch_ids, eoe_ids] = True
+        # src_mask[:, 0] = True
+
+        # embs = embs.view(-1, 5, embs.size(dim=-2), embs.size(dim=-1))
+        # src_mask = src_mask.view(-1, 5, src_mask.size(dim=-1))
+
+        # query = embs[:, 0, :, :]
+        # pos_key = embs[:, 1, :, :]
+        # neg_key = embs[:, 2:, :, :]
+        # query_mask = src_mask[:, 0]
+        # pos_mask = src_mask[:, 1]
+        # neg_mask = src_mask[:, 2:]
+
+        # loss = criterion(
+        #     query=query,
+        #     query_mask=query_mask,
+        #     pos_key=pos_key,
+        #     pos_mask=pos_mask,
+        #     neg_key=neg_key,
+        #     neg_mask=neg_mask,
+        # )
         # -------------------------------
 
         # ---------- 1st token ----------
