@@ -4,6 +4,8 @@
 from config import get_config, DEVICE
 from criterion import InfoNCE, MaxSim
 from dataset import ARQMath
+from lr_scheduler import build_scheduler
+from optimizer import build_optimizer
 from tokenizer import Tokenizer
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
@@ -49,32 +51,11 @@ def main() -> None:
         norm_eps=cfg.MODEL.TX.NORM_EPS,
     )
 
-    optimizer = AdamW(
-        params=math_enc.parameters(),
-        lr=cfg.OPTIM.ADAMW.LR,
-        weight_decay=cfg.OPTIM.ADAMW.WEIGHT_DECAY,
-    )
+    # define optimizer
+    optimizer = build_optimizer(cfg=cfg, model=math_enc)
 
-    # lr_scheduler = CosineAnnealingWarmRestarts(
-    #     optimizer=optimizer,
-    #     T_0=cfg.LRS.CAWR.T_0,
-    #     T_mult=cfg.LRS.CAWR.T_MULT,
-    #     eta_min=cfg.LRS.CAWR.ETA_MIN,
-    #     last_epoch=cfg.LRS.CAWR.LAST_EPOCH,
-    # )
-
-    # lr_scheduler = CosineAnnealingLR(
-    #     optimizer=optimizer,
-    #     T_max=cfg.LRS.CA.T_MAX,
-    #     eta_min=cfg.LRS.CA.ETA_MIN,
-    #     last_epoch=cfg.LRS.CA.LAST_EPOCH,
-    # )
-
-    lr_scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=cfg.LRS.CAW.N_WARMUP_STEPS,
-        num_training_steps=cfg.LRS.CAW.N_TRAIN_STEPS,
-    )
+    # define lr scheduler
+    lr_scheduler = build_scheduler(cfg=cfg, optimizer=optimizer)
 
     criterion = InfoNCE(
         temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
@@ -97,7 +78,7 @@ def main() -> None:
         device=DEVICE,
         n_epochs=cfg.TRAIN.N_EPOCHS,
         dataloader=dataloader,
-        save_every_n_steps=cfg.TRAIN.SAVE_N_STEPS,
+        save_every_n_iters=cfg.TRAIN.SAVE_N_ITERS,
     )
 
     return

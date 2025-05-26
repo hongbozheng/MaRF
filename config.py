@@ -34,7 +34,7 @@ _C.MODEL.TX.NORM_EPS = 1e-5
 _C.CKPT = CN()
 
 """ Model """
-_C.CKPT.DIR = "models_maxsim-2"
+_C.CKPT.DIR = "models_avgpool"
 
 """ Transformer """
 _C.CKPT.TX = CN()
@@ -47,10 +47,16 @@ _C.CKPT.TX.LAST = _C.CKPT.DIR + "/tx_last.ckpt"
 # -----------------------------------------------------------------------------
 _C.OPTIM = CN()
 
+""" SGD """
+_C.OPTIM.SGD = CN()
+_C.OPTIM.SGD.MOMENTUM = 0.90
+_C.OPTIM.SGD.WEIGHT_DECAY = 0.05
+_C.OPTIM.SGD.NESTEROV = True
+
 """ AdamW """
 _C.OPTIM.ADAMW = CN()
-_C.OPTIM.ADAMW.LR = 1e-4
 _C.OPTIM.ADAMW.BETAS = (0.9, 0.999)
+_C.OPTIM.ADAMW.EPS = 1e-8
 _C.OPTIM.ADAMW.WEIGHT_DECAY = 1e-2
 
 
@@ -59,23 +65,12 @@ _C.OPTIM.ADAMW.WEIGHT_DECAY = 1e-2
 # -----------------------------------------------------------------------------
 _C.LRS = CN()
 
-""" CosineAnnealingWarmup """
-_C.LRS.CAW = CN()
-_C.LRS.CAW.N_WARMUP_STEPS = 5000
-_C.LRS.CAW.N_TRAIN_STEPS = 20 * 13013  # n_epochs x n_batches_per_epoch
-
-""" CosineAnnealingWarmRestarts """
-_C.LRS.CAWR = CN()
-_C.LRS.CAWR.T_0 = 10
-_C.LRS.CAWR.T_MULT = 2
-_C.LRS.CAWR.ETA_MIN = 1e-8
-_C.LRS.CAWR.LAST_EPOCH = -1
-
-""" CosineAnnealingLR """
-_C.LRS.CA = CN()
-_C.LRS.CA.T_MAX = 10
-_C.LRS.CA.ETA_MIN = 1e-8
-_C.LRS.CA.LAST_EPOCH = -1
+""" CosineLRScheduler """
+# set learning rate scheduler parameters in training
+""" LinearLRScheduler """
+# set learning rate scheduler parameters in training
+""" StepLRScheduler """
+# set learning rate scheduler parameters in training
 
 
 # -----------------------------------------------------------------------------
@@ -144,11 +139,28 @@ LOG_LEVEL = LogLevel.INFO
 # -----------------------------------------------------------------------------
 _C.TRAIN = CN()
 
+""" Optimizer """
+_C.TRAIN.OPTIM = CN()
+_C.TRAIN.OPTIM.NAME = "adamw"
+_C.TRAIN.OPTIM.BASE_LR = 1e-4
+_C.TRAIN.OPTIM.WARMUP_LR = 1e-7
+_C.TRAIN.OPTIM.MIN_LR = 1e-6
+
+""" LR Scheduler """
+_C.TRAIN.LRS = CN()
+_C.TRAIN.LRS.NAME = "cosine"
+# epoch interval to decay LR, used in StepLRScheduler
+_C.TRAIN.LRS.DECAY_EPOCHS = 5
+# LR decay rate, used in StepLRScheduler
+_C.TRAIN.LRS.DECAY_RATE = 0.1
+
 """ Training """
+_C.TRAIN.MAX_NORM = 5.0
+_C.TRAIN.N_ITER_PER_EPOCH = 13013
+_C.TRAIN.WARMUP_EPOCHS = 2
 _C.TRAIN.N_EPOCHS = 20
-_C.TRAIN.N_BATCHES = 13013  # number of batches per epoch
-_C.TRAIN.MAX_NORM = 1.0
-_C.TRAIN.SAVE_N_STEPS = 500
+_C.TRAIN.SAVE_N_ITERS = 500
+_C.TRAIN.STATS_FILEPATH = "stats.json"
 
 
 # -----------------------------------------------------------------------------

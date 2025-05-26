@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from avg_meter import AverageMeter
 from logger import timestamp
+from timm.scheduler.scheduler import Scheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils import train_params
@@ -14,20 +15,21 @@ def train_epoch(
         model: nn.Module,
         ckpt_last: str,
         optimizer: optim.Optimizer,
-        lr_scheduler,
+        lr_scheduler: Scheduler,
         criterion: nn.Module,
         max_norm: float,
         device: torch.device,
         dataloader: DataLoader,
         epoch: int,
         init_batch: int,
-        save_every_n_steps: int
+        save_every_n_iters: int,
 ) -> float:
     model.train(mode=True)
 
     loader_tqdm = tqdm(iterable=dataloader, position=1, leave=False)
     loader_tqdm.set_description(desc=f"[{timestamp()}] [Batch 0]", refresh=True)
-    torch.autograd.set_detect_anomaly(True)
+
+    n_iters = len(dataloader)
     loss_meter = AverageMeter()
 
     for i, batch in enumerate(iterable=loader_tqdm):
@@ -107,19 +109,18 @@ def train_epoch(
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
         optimizer.step()
-        lr_scheduler.step()
+        lr_scheduler.step_update(n_iters * epoch + i)
 
         loss_meter.update(loss.item(), n=src.size(dim=0))
-
         loader_tqdm.set_description(
             desc=f"[{timestamp()}] [Batch {i+1}]: "
                  f"train loss {loss_meter.avg:.6f}",
             refresh=True,
         )
 
-        if (i + 1) % save_every_n_steps == 0:
+        if (i + 1) % save_every_n_iters == 0:
             curr_lr = lr_scheduler.get_last_lr()[0]
-            n_steps = epoch * len(dataloader) + (i+1)
+            n_steps = n_iters * epoch + (i+1)
             loader_tqdm.write(f"[{timestamp()}] [Step {n_steps}] Current LR {curr_lr:.8f}")
             torch.save(
                 {
@@ -151,7 +152,7 @@ def train_model(
         device: torch.device,
         n_epochs: int,
         dataloader: DataLoader,
-        save_every_n_steps: int,
+        save_every_n_iters: int,
 ) -> None:
     path, _ = os.path.split(p=ckpt_last)
     if not os.path.exists(path=path):
@@ -202,7 +203,7 @@ def train_model(
             dataloader=dataloader,
             epoch=epoch,
             init_batch=init_batch,
-            save_every_n_steps=save_every_n_steps,
+            save_every_n_iters=save_every_n_iters,
         )
 
         init_batch = 0
