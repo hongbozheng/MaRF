@@ -119,9 +119,10 @@ def train_epoch(
         )
 
         if (i + 1) % save_every_n_iters == 0:
-            curr_lr = lr_scheduler.get_last_lr()[0]
             n_steps = n_iters * epoch + (i+1)
-            loader_tqdm.write(f"[{timestamp()}] [Step {n_steps}] Current LR {curr_lr:.8f}")
+            for param_group in optimizer.param_groups:
+                loader_tqdm.write(f"[{timestamp()}] [Step {n_steps}] Current LR {param_group['lr']:.8f}")
+
             torch.save(
                 {
                     "model_state": model.state_dict(),

@@ -17,10 +17,10 @@ _C.MODEL = CN()
 """ Transformer """
 _C.MODEL.TX = CN()
 _C.MODEL.TX.VOCAB_SIZE = 10000
-_C.MODEL.TX.DIM = 512
-_C.MODEL.TX.N_LAYERS = 6
-_C.MODEL.TX.N_HEADS = 8
-_C.MODEL.TX.N_KV_HEADS = 8
+_C.MODEL.TX.DIM = 768
+_C.MODEL.TX.N_LAYERS = 8
+_C.MODEL.TX.N_HEADS = 12
+_C.MODEL.TX.N_KV_HEADS = 12
 _C.MODEL.TX.BASE = 10000
 _C.MODEL.TX.MAX_SEQ_LEN = 256
 _C.MODEL.TX.MULTIPLE_OF = 256
@@ -34,7 +34,7 @@ _C.MODEL.TX.NORM_EPS = 1e-5
 _C.CKPT = CN()
 
 """ Model """
-_C.CKPT.DIR = "models_avgpool"
+_C.CKPT.DIR = "avgpool_L"
 
 """ Transformer """
 _C.CKPT.TX = CN()
@@ -98,7 +98,7 @@ _C.DATA = CN()
 _C.DATA.DATA_DIR = "data"
 _C.DATA.VOCAB_FILE = _C.DATA.DATA_DIR + "/vocabs.txt"
 # _C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
-_C.DATA.FORMULA_FILE = "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_small.txt"
+_C.DATA.FORMULA_FILE = "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_14M.txt"
 _C.DATA.VAL_FILE = _C.DATA.DATA_DIR + "/exprs_val.txt"
 
 
@@ -109,7 +109,7 @@ _C.LOADER = CN()
 
 """ Train DataLoader """
 _C.LOADER.TRAIN = CN()
-_C.LOADER.TRAIN.BATCH_SIZE = 96
+_C.LOADER.TRAIN.BATCH_SIZE = 64
 _C.LOADER.TRAIN.SHUFFLE = False
 _C.LOADER.TRAIN.NUM_WORKERS = 1
 _C.LOADER.TRAIN.PIN_MEMORY = True
@@ -155,11 +155,11 @@ _C.TRAIN.LRS.DECAY_EPOCHS = 5
 _C.TRAIN.LRS.DECAY_RATE = 0.1
 
 """ Training """
-_C.TRAIN.MAX_NORM = 5.0
-_C.TRAIN.N_ITER_PER_EPOCH = 13013
-_C.TRAIN.WARMUP_EPOCHS = 2
-_C.TRAIN.N_EPOCHS = 20
-_C.TRAIN.SAVE_N_ITERS = 500
+_C.TRAIN.MAX_NORM = 1.0
+_C.TRAIN.N_ITER_PER_EPOCH = 222674
+_C.TRAIN.WARMUP_EPOCHS = 0.02245
+_C.TRAIN.N_EPOCHS = 2
+_C.TRAIN.SAVE_N_ITERS = 1000
 _C.TRAIN.STATS_FILEPATH = "stats.json"
 
 
