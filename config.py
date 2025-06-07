@@ -97,7 +97,6 @@ _C.DATA = CN()
 """ Formulas """
 _C.DATA.DATA_DIR = "data"
 _C.DATA.VOCAB_FILE = _C.DATA.DATA_DIR + "/vocabs.txt"
-# _C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
 _C.DATA.FORMULA_FILE = "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_14M.txt"
 _C.DATA.VAL_FILE = _C.DATA.DATA_DIR + "/exprs_val.txt"
 

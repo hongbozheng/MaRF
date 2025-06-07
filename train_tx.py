@@ -7,12 +7,9 @@ from dataset import ARQMath
 from lr_scheduler import build_scheduler
 from optimizer import build_optimizer
 from tokenizer import Tokenizer
-from torch.optim.adamw import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 from train import train_model
 from transformer import Transformer
-from transformers import get_linear_schedule_with_warmup
 
 
 def main() -> None:
