@@ -168,7 +168,6 @@ def train_model(
     init_epoch = 0
     init_batch = 0
     best_loss = float('inf')
-    avg_losses = []  # TODO: Store train losses & val acc in JSON?
 
     if os.path.exists(path=ckpt_last):
         ckpt = torch.load(f=ckpt_last, map_location=device)
@@ -179,7 +178,7 @@ def train_model(
         init_epoch = ckpt["epoch"]+1 if init_batch == 0 else ckpt["epoch"]
         best_loss = ckpt["loss"]
         filename = os.path.basename(p=ckpt_last)
-        logger.log_info(f"Loaded `{filename}`.")
+        logger.log_info(f"Loaded `{filename}`")
 
     epoch_tqdm = tqdm(
         iterable=range(init_epoch, n_epochs),
@@ -193,7 +192,7 @@ def train_model(
             desc=f"[{timestamp()}] [Epoch {epoch}]",
             refresh=True,
         )
-        avg_loss = train_epoch(
+        loss = train_epoch(
             model=model,
             ckpt_last=ckpt_last,
             optimizer=optimizer,
@@ -209,26 +208,7 @@ def train_model(
 
         init_batch = 0
 
-        epoch_tqdm.write(
-            s=f"[{timestamp()}] [Epoch {epoch}] loss {avg_loss:.6f}"
-        )
-
-        # if avg_loss < best_loss:
-        #     best_loss = avg_loss
-        #     torch.save(
-        #         obj={
-        #             "model": model.state_dict(),
-        #             "optimizer": optimizer.state_dict(),
-        #             "lr_scheduler": lr_scheduler.state_dict(),
-        #             "epoch": epoch,
-        #             "best_loss": best_loss,
-        #         },
-        #         f=ckpt_best,
-        #     )
-        #     epoch_tqdm.write(
-        #         s=f"[{timestamp()}] [Epoch {epoch}]: Saved best model to "
-        #           f"`{ckpt_best}`"
-        #     )
+        epoch_tqdm.write(s=f"[{timestamp()}] [Epoch {epoch}] loss {loss:.6f}")
 
         torch.save(
             {
@@ -237,7 +217,11 @@ def train_model(
                 "lr_scheduler_state": lr_scheduler.state_dict(),
                 "epoch": epoch,
                 "batch": -1,
-                "loss": avg_loss,
+                "loss": loss,
             },
             ckpt_last,
+        )
+        epoch_tqdm.write(
+            s=f"[{timestamp()}] [Epoch {epoch}] Saved last model to "
+                f"`{ckpt_last}`"
         )

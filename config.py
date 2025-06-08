@@ -33,13 +33,10 @@ _C.MODEL.TX.NORM_EPS = 1e-5
 # -----------------------------------------------------------------------------
 _C.CKPT = CN()
 
-""" Model """
+""" Math Encoder """
 _C.CKPT.DIR = "avgpool_L"
-
-""" Transformer """
-_C.CKPT.TX = CN()
-_C.CKPT.TX.BEST = _C.CKPT.DIR + "/tx_best.ckpt"
-_C.CKPT.TX.LAST = _C.CKPT.DIR + "/tx_last.ckpt"
+_C.CKPT.BEST = _C.CKPT.DIR + "/best.ckpt"
+_C.CKPT.LAST = _C.CKPT.DIR + "/last.ckpt"
 
 
 # -----------------------------------------------------------------------------
@@ -152,6 +149,11 @@ _C.TRAIN.LRS.NAME = "cosine"
 _C.TRAIN.LRS.DECAY_EPOCHS = 5
 # LR decay rate, used in StepLRScheduler
 _C.TRAIN.LRS.DECAY_RATE = 0.1
+
+""" Criterion """
+_C.TRAIN.CRITERION = CN()
+_C.TRAIN.CRITERION.NAME = "infonce"
+
 
 """ Training """
 _C.TRAIN.MAX_NORM = 1.0

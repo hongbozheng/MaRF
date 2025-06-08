@@ -2,7 +2,7 @@
 
 
 from config import get_config, DEVICE
-from criterion import InfoNCE, MaxSim
+from criterion import build_criterion
 from dataset import ARQMath
 from lr_scheduler import build_scheduler
 from optimizer import build_optimizer
@@ -54,20 +54,13 @@ def main() -> None:
     # define lr scheduler
     lr_scheduler = build_scheduler(cfg=cfg, optimizer=optimizer)
 
-    criterion = InfoNCE(
-        temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
-        reduction=cfg.CRITERION.INFONCE.REDUCTION,
-    )
-
-    # criterion = MaxSim(
-    #     temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
-    #     reduction=cfg.CRITERION.INFONCE.REDUCTION,
-    # )
+    # define criterion
+    criterion = build_criterion(cfg=cfg)
 
     train_model(
         model=math_enc,
-        ckpt_best=cfg.CKPT.TX.BEST,
-        ckpt_last=cfg.CKPT.TX.LAST,
+        ckpt_best=cfg.CKPT.BEST,
+        ckpt_last=cfg.CKPT.LAST,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
         criterion=criterion,
