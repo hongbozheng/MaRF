@@ -118,7 +118,7 @@ def train_epoch(
         optimizer.step()
         lr_scheduler.step_update(n_iters * epoch + i)
 
-        loss_meter.update(loss.item(), n=math_src.size(dim=0))
+        loss_meter.update(loss.item(), n=math.size(dim=0))
         loader_tqdm.set_description(
             desc=f"[{timestamp()}] [Batch {i+1}]: "
                  f"train loss {loss_meter.avg:.6f}",
@@ -132,10 +132,10 @@ def train_epoch(
 
             torch.save(
                 {
-                    "bert_state": bert.state_dict(),
-                    "math_state": math_enc.state_dict(),
-                    "optimizer_state": optimizer.state_dict(),
-                    "lr_scheduler_state": lr_scheduler.state_dict(),
+                    "bert_state_dict": bert.state_dict(),
+                    "math_state_dict": math_enc.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "lr_scheduler_state_dict": lr_scheduler.state_dict(),
                     "epoch": epoch,
                     "batch": i,
                     "loss": loss,
@@ -235,28 +235,11 @@ def train_model(
 
         epoch_tqdm.write(s=f"[{timestamp()}] [Epoch {epoch}] loss {loss:.6f}")
 
-        # if avg_loss < best_loss:
-        #     best_loss = avg_loss
-        #     torch.save(
-        #         obj={
-        #             "model": model.state_dict(),
-        #             "optimizer": optimizer.state_dict(),
-        #             "lr_scheduler": lr_scheduler.state_dict(),
-        #             "epoch": epoch,
-        #             "best_loss": best_loss,
-        #         },
-        #         f=ckpt_best,
-        #     )
-        #     epoch_tqdm.write(
-        #         s=f"[{timestamp()}] [Epoch {epoch}]: Saved best model to "
-        #           f"`{ckpt_best}`"
-        #     )
-
         torch.save(
             {
                 "bert_state_dict": bert.state_dict(),
                 "math_enc_state_dict": math_enc.state_dict(),
-                "optimizer_state": optimizer.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
                 "lr_scheduler_state": lr_scheduler.state_dict(),
                 "epoch": epoch,
                 "batch": -1,
