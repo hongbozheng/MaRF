@@ -14,7 +14,11 @@ _C.BASE = ['']
 # -----------------------------------------------------------------------------
 _C.MODEL = CN()
 
-""" Transformer """
+""" Bert """
+_C.MODEL.BERT = CN()
+_C.MODEL.BERT.ADD_POOLING = False
+
+""" Transformer (Math) """
 _C.MODEL.TX = CN()
 _C.MODEL.TX.VOCAB_SIZE = 10000
 _C.MODEL.TX.DIM = 768
@@ -35,11 +39,19 @@ _C.CKPT = CN()
 
 """ Model """
 _C.CKPT.DIR = "avgpool_L"
+_C.CKPT.PRETRAIN_DIR = _C.CKPT.DIR + "/pretrain"
+_C.CKPT.BEST = _C.CKPT.DIR + "/best.ckpt"  # not used
+_C.CKPT.LAST = _C.CKPT.DIR + "/last.ckpt"
 
-""" Transformer """
-_C.CKPT.TX = CN()
-_C.CKPT.TX.BEST = _C.CKPT.DIR + "/tx_best.ckpt"
-_C.CKPT.TX.LAST = _C.CKPT.DIR + "/tx_last.ckpt"
+""" Bert """
+_C.CKPT.BERT = CN()
+_C.CKPT.BERT.CFG = _C.CKPT.PRETRAIN_DIR + "/bert_cfg.json"
+_C.CKPT.BERT.PRETRAIN = _C.CKPT.PRETRAIN_DIR + "/bert.pt"
+_C.CKPT.BERT.TOKENIZER = _C.CKPT.PRETRAIN_DIR + "/bert-math-tokenizer"
+
+""" Math Encoder """
+_C.CKPT.MATH_ENC = CN()
+_C.CKPT.MATH_ENC.PRETRAIN = _C.CKPT.PRETRAIN_DIR + "/math-enc.ckpt"
 
 
 # -----------------------------------------------------------------------------

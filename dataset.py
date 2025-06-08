@@ -43,19 +43,7 @@ class ARQMath(Dataset):
         src_mask = torch.eq(input=src, other=self.tokenizer.word2idx["PAD"]) \
             .unsqueeze(dim=1).unsqueeze(dim=1).to(dtype=torch.bool)
 
-        '''
-        print(tgt)
-        print(src)
-        print("src_mask")
-        print(src_mask, src_mask.size())
-        print("tgt_mask")
-        print(tgt_mask, tgt_mask.size())
-        print("tgt_pad_mask")
-        print(tgt_pad_mask, tgt_pad_mask.size())
-        print(tgt_mask, tgt_mask.size())
-        '''
-
         return {
-            "src": src,
-            "src_mask": src_mask,
+            "math_src": src,
+            "math_src_mask": src_mask,
         }

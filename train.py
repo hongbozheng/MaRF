@@ -1,10 +1,11 @@
-import logger
+from typing import Optional
+
 import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from avg_meter import AverageMeter
-from logger import timestamp
+from logger import log_info, timestamp
 from timm.scheduler.scheduler import Scheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -12,7 +13,8 @@ from utils import train_params
 
 
 def train_epoch(
-        model: nn.Module,
+        bert: nn.Module,
+        math_enc: nn.Module,
         ckpt_last: str,
         optimizer: optim.Optimizer,
         lr_scheduler: Scheduler,
@@ -24,8 +26,6 @@ def train_epoch(
         init_batch: int,
         save_every_n_iters: int,
 ) -> float:
-    model.train(mode=True)
-
     loader_tqdm = tqdm(iterable=dataloader, position=1, leave=False)
     loader_tqdm.set_description(desc=f"[{timestamp()}] [Batch 0]", refresh=True)
 
@@ -36,18 +36,24 @@ def train_epoch(
         if i < init_batch:
             continue
 
-        src = batch["src"].to(device=device)
-        src_mask = batch["src_mask"].to(device=device)
+        qa = batch["qa"].to(device=device)
+        qa_mask = batch["qa_mask"].to(device=device)
+        math = batch["math"].to(device=device)
+        math_mask = batch["math_mask"].to(device=device)
 
         optimizer.zero_grad()
-        embs = model(tokens=src, mask=src_mask, cache_pos=None)
+        qa_embs = bert(...)
+        math_embs = math_enc(tokens=math, mask=math_mask, cache_pos=None)
 
         # ---------- mean pool ----------
         src_mask = src_mask.squeeze(dim=(-3, -2))
         n_pad = src_mask.int().sum(dim=-1)
         eoe_ids = src_mask.size(dim=-1) - n_pad - 1
         batch_ids = torch.arange(
-            start=0, end=src_mask.size(dim=0), dtype=torch.int64, device=src_mask.device
+            start=0,
+            end=src_mask.size(dim=0),
+            dtype=torch.int64,
+            device=math_mask.device,
         )
         src_mask[batch_ids, eoe_ids] = True
         src_mask[:, 0] = True
@@ -107,11 +113,12 @@ def train_epoch(
         # -------------------------------
 
         loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
+        nn.utils.clip_grad_norm_(bert.parameters(), max_norm=max_norm)
+        nn.utils.clip_grad_norm_(math_enc.parameters(), max_norm=max_norm)
         optimizer.step()
         lr_scheduler.step_update(n_iters * epoch + i)
 
-        loss_meter.update(loss.item(), n=src.size(dim=0))
+        loss_meter.update(loss.item(), n=math_src.size(dim=0))
         loader_tqdm.set_description(
             desc=f"[{timestamp()}] [Batch {i+1}]: "
                  f"train loss {loss_meter.avg:.6f}",
@@ -125,7 +132,8 @@ def train_epoch(
 
             torch.save(
                 {
-                    "model_state": model.state_dict(),
+                    "bert_state": bert.state_dict(),
+                    "math_state": math_enc.state_dict(),
                     "optimizer_state": optimizer.state_dict(),
                     "lr_scheduler_state": lr_scheduler.state_dict(),
                     "epoch": epoch,
@@ -143,8 +151,10 @@ def train_epoch(
 
 
 def train_model(
-        model: nn.Module,
-        ckpt_best: str,
+        bert: nn.Module,
+        math_enc: nn.Module,
+        bert_pretrain: Optional[str],
+        math_enc_pretrain: Optional[str],
         ckpt_last: str,
         optimizer: optim.Optimizer,
         lr_scheduler: optim.lr_scheduler.LRScheduler,
@@ -159,27 +169,40 @@ def train_model(
     if not os.path.exists(path=path):
         os.makedirs(name=path, exist_ok=True)
 
-    model.to(device=device)
-    model.train(mode=True)
+    bert.to(device=device)
+    math_enc.to(device=device)
+    bert.train(mode=True)
+    math_enc.train(mode=True)
 
-    params = train_params(model=model)
-    logger.log_info(f"Total trainable parameters {params * 1e-6}M")
+    bert_params = train_params(model=bert)
+    math_enc_params = train_params(model=math_enc)
+    log_info(f"BERT    trainable parameters {bert_params * 1e-6:.4f}M")
+    log_info(f"MathEnc trainable parameters {math_enc_params * 1e-6:.4f}M")
+    log_info(f"Total   trainable parameters {(bert_params + math_enc_params) * 1e-6:.4f}M")
 
     init_epoch = 0
     init_batch = 0
     best_loss = float('inf')
-    avg_losses = []  # TODO: Store train losses & val acc in JSON?
+
+    if bert_pretrain:
+        ckpt = torch.load(f=bert_pretrain, map_location=device)
+        bert.load_state_dict(state_dict=ckpt["model_state_dict"])
+        log_info(f"Loaded pretrained BERT    from `{bert_pretrain}`")
+    if math_enc_pretrain:
+        ckpt = torch.load(f=math_enc_pretrain, map_location=device)
+        math_enc.load_state_dict(state_dict=ckpt["model_state_dict"])
+        log_info(f"Loaded pretrained MathEnc from `{math_enc_pretrain}`")
 
     if os.path.exists(path=ckpt_last):
         ckpt = torch.load(f=ckpt_last, map_location=device)
-        model.load_state_dict(state_dict=ckpt["model_state"])
-        optimizer.load_state_dict(state_dict=ckpt["optimizer_state"])
-        lr_scheduler.load_state_dict(state_dict=ckpt["lr_scheduler_state"])
+        bert.load_state_dict(state_dict=ckpt["bert_state_dict"])
+        math_enc.load_state_dict(state_dict=ckpt["math_enc_state_dict"])
+        optimizer.load_state_dict(state_dict=ckpt["optimizer_state_dict"])
+        lr_scheduler.load_state_dict(state_dict=ckpt["lr_scheduler_state_dict"])
         init_batch = ckpt["batch"]+1
         init_epoch = ckpt["epoch"]+1 if init_batch == 0 else ckpt["epoch"]
-        best_loss = ckpt["loss"]
         filename = os.path.basename(p=ckpt_last)
-        logger.log_info(f"Loaded `{filename}`.")
+        log_info(f"Loaded `{filename}`")
 
     epoch_tqdm = tqdm(
         iterable=range(init_epoch, n_epochs),
@@ -193,8 +216,9 @@ def train_model(
             desc=f"[{timestamp()}] [Epoch {epoch}]",
             refresh=True,
         )
-        avg_loss = train_epoch(
-            model=model,
+        loss = train_epoch(
+            bert=bert,
+            math_enc=math_enc,
             ckpt_last=ckpt_last,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
@@ -209,9 +233,7 @@ def train_model(
 
         init_batch = 0
 
-        epoch_tqdm.write(
-            s=f"[{timestamp()}] [Epoch {epoch}] loss {avg_loss:.6f}"
-        )
+        epoch_tqdm.write(s=f"[{timestamp()}] [Epoch {epoch}] loss {loss:.6f}")
 
         # if avg_loss < best_loss:
         #     best_loss = avg_loss
@@ -232,12 +254,17 @@ def train_model(
 
         torch.save(
             {
-                "model_state": model.state_dict(),
+                "bert_state_dict": bert.state_dict(),
+                "math_enc_state_dict": math_enc.state_dict(),
                 "optimizer_state": optimizer.state_dict(),
                 "lr_scheduler_state": lr_scheduler.state_dict(),
                 "epoch": epoch,
                 "batch": -1,
-                "loss": avg_loss,
+                "loss": loss,
             },
             ckpt_last,
+        )
+        epoch_tqdm.write(
+            s=f"[{timestamp()}] [Epoch {epoch}]: Saved best model to "
+                f"`{ckpt_last}`"
         )

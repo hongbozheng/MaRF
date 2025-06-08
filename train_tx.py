@@ -7,17 +7,18 @@ from dataset import ARQMath
 from lr_scheduler import build_scheduler
 from optimizer import build_optimizer
 from tokenizer import Tokenizer
-from torch.optim.adamw import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 from train import train_model
 from transformer import Transformer
-from transformers import get_linear_schedule_with_warmup
+from transformers import BertConfig, BertModel, BertTokenizer
 
 
 def main() -> None:
     cfg = get_config(args=None)
 
+    bert_tokenizer = BertTokenizer.from_pretrained(
+        pretrained_model_name_or_path=cfg.CKPT.BERT.TOKENIZER
+    )
     tokenizer = Tokenizer(file_path=cfg.DATA.VOCAB_FILE)
 
     arqmath = ARQMath(
@@ -37,6 +38,9 @@ def main() -> None:
     #     src = batch["src"]
     #     print(src.shape)
     # return
+
+    bert_cfg = BertConfig.from_json_file(json_file=cfg.CKPT.BERT.CFG)
+    bert = BertModel(config=bert_cfg, add_pooling_layer=cfg.MODEL.BERT.ADD_POOLING)
 
     math_enc = Transformer(
         vocab_size=len(tokenizer.vocabs),
@@ -68,9 +72,11 @@ def main() -> None:
     # )
 
     train_model(
-        model=math_enc,
-        ckpt_best=cfg.CKPT.TX.BEST,
-        ckpt_last=cfg.CKPT.TX.LAST,
+        bert=bert,
+        math_enc=math_enc,
+        bert_pretrain=cfg.CKPT.BERT.PRETRAIN,
+        math_enc_pretrain=cfg.CKPT.MATH_ENC.PRETRAIN,
+        ckpt_last=cfg.CKPT.LAST,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
         criterion=criterion,

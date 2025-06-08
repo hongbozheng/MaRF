@@ -3,6 +3,7 @@ from torch import Tensor
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from logger import log_error
 
 
 class InfoNCE(nn.Module):
@@ -105,3 +106,27 @@ class MaxSim(nn.Module):
         )
 
         return loss
+
+
+def build_criterion(cfg) -> nn.Module:
+    criterion_name = cfg.TRAIN.CRITERION.NAME.lower()
+
+    criterion = None
+    if criterion_name == 'infonce':
+        criterion = InfoNCE(
+            temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
+            reduction=cfg.CRITERION.INFONCE.REDUCTION,
+        )
+    elif criterion_name == 'maxsim':
+        criterion = MaxSim(
+            temperature=cfg.CRITERION.MAXSIM.TEMPERATURE,
+            reduction=cfg.CRITERION.MAXSIM.REDUCTION,
+        )
+    else:
+        log_error(
+            "Invalid criterion. "
+            "Please choose from {{'InfoNCE', 'MaxSim'}}."
+        )
+        exit(1)
+
+    return criterion
