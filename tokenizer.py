@@ -1,5 +1,4 @@
 from torch import Tensor
-from typing import List
 
 import torch
 

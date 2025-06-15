@@ -1,4 +1,5 @@
 import torch
+import yaml
 from logger import LogLevel
 from yacs.config import CfgNode as CN
 
@@ -13,23 +14,25 @@ _C.BASE = ['']
 # Model
 # -----------------------------------------------------------------------------
 _C.MODEL = CN()
+_C.MODEL.NAME = None
 
 """ Bert """
 _C.MODEL.BERT = CN()
 _C.MODEL.BERT.ADD_POOLING = False
 
 """ Transformer (Math) """
-_C.MODEL.TX = CN()
-_C.MODEL.TX.VOCAB_SIZE = 10000
-_C.MODEL.TX.DIM = 768
-_C.MODEL.TX.N_LAYERS = 8
-_C.MODEL.TX.N_HEADS = 12
-_C.MODEL.TX.N_KV_HEADS = 12
-_C.MODEL.TX.BASE = 10000
-_C.MODEL.TX.MAX_SEQ_LEN = 256
-_C.MODEL.TX.MULTIPLE_OF = 256
-_C.MODEL.TX.FFN_DIM_MULTIPLIER = None
-_C.MODEL.TX.NORM_EPS = 1e-5
+_C.MODEL.MATH_ENC = CN()
+_C.MODEL.MATH_ENC.TOK_EMBEDDINGS = None
+_C.MODEL.MATH_ENC.VOCAB_SIZE = None
+_C.MODEL.MATH_ENC.DIM = 768
+_C.MODEL.MATH_ENC.N_LAYERS = 8
+_C.MODEL.MATH_ENC.N_HEADS = 12
+_C.MODEL.MATH_ENC.N_KV_HEADS = 12
+_C.MODEL.MATH_ENC.MULTIPLE_OF = 256
+_C.MODEL.MATH_ENC.FFN_DIM_MULTIPLIER = None
+_C.MODEL.MATH_ENC.NORM_EPS = 1e-5
+_C.MODEL.MATH_ENC.THETA = 10000
+_C.MODEL.MATH_ENC.MAX_SEQ_LEN = 256
 
 
 # -----------------------------------------------------------------------------
@@ -39,25 +42,29 @@ _C.CKPT = CN()
 
 """ Model """
 _C.CKPT.DIR = "avgpool_L"
-_C.CKPT.PRETRAIN_DIR = _C.CKPT.DIR + "/pretrain"
 _C.CKPT.BEST = _C.CKPT.DIR + "/best.ckpt"  # not used
 _C.CKPT.LAST = _C.CKPT.DIR + "/last.ckpt"
 
 """ Bert """
 _C.CKPT.BERT = CN()
-_C.CKPT.BERT.CFG = _C.CKPT.PRETRAIN_DIR + "/bert_cfg.json"
-_C.CKPT.BERT.PRETRAIN = _C.CKPT.PRETRAIN_DIR + "/bert.pt"
-_C.CKPT.BERT.TOKENIZER = _C.CKPT.PRETRAIN_DIR + "/bert-math-tokenizer"
+_C.CKPT.BERT.CFG = "pretrain/bert_cfg.json"
+_C.CKPT.BERT.PRETRAIN = "pretrain/bert.pt"
+_C.CKPT.BERT.TOKENIZER = "pretrain/bert-math-tokenizer"
 
 """ Math Encoder """
 _C.CKPT.MATH_ENC = CN()
-_C.CKPT.MATH_ENC.PRETRAIN = _C.CKPT.PRETRAIN_DIR + "/math-enc.ckpt"
+# _C.CKPT.MATH_ENC.PRETRAIN = _C.CKPT.PRETRAIN_DIR + "/math-enc.ckpt"
+_C.CKPT.MATH_ENC.PRETRAIN = None
 
 
 # -----------------------------------------------------------------------------
 # Optimizer
 # -----------------------------------------------------------------------------
 _C.OPTIM = CN()
+_C.OPTIM.NAME = None
+_C.OPTIM.BASE_LR = 1e-4
+_C.OPTIM.WARMUP_LR = 1e-7
+_C.OPTIM.MIN_LR = 1e-6
 
 """ SGD """
 _C.OPTIM.SGD = CN()
@@ -76,19 +83,22 @@ _C.OPTIM.ADAMW.WEIGHT_DECAY = 1e-2
 # Learning Rate Scheduler
 # -----------------------------------------------------------------------------
 _C.LRS = CN()
+_C.LRS.NAME = None
 
 """ CosineLRScheduler """
 # set learning rate scheduler parameters in training
 """ LinearLRScheduler """
 # set learning rate scheduler parameters in training
 """ StepLRScheduler """
-# set learning rate scheduler parameters in training
+_C.LRS.STEP_LRS = CN()
+_C.LRS.STEP_LRS.DECAY_RATE = 0.1
 
 
 # -----------------------------------------------------------------------------
 # Criterion
 # -----------------------------------------------------------------------------
 _C.CRITERION = CN()
+_C.CRITERION.NAME = None
 
 """ InfoNCE """
 _C.CRITERION.INFONCE = CN()
@@ -102,16 +112,20 @@ _C.CRITERION.MAXSIM.REDUCTION = "mean"
 
 
 # -----------------------------------------------------------------------------
+# Postprocess
+# -----------------------------------------------------------------------------
+_C.POSTPROCESS = CN()
+_C.POSTPROCESS.NAME = None
+
+
+# -----------------------------------------------------------------------------
 # Data
 # -----------------------------------------------------------------------------
 _C.DATA = CN()
-
-""" Formulas """
-_C.DATA.DATA_DIR = "data"
-_C.DATA.VOCAB_FILE = _C.DATA.DATA_DIR + "/vocabs.txt"
-# _C.DATA.FORMULA_FILE = _C.DATA.DATA_DIR + "/formulas.txt"
-_C.DATA.FORMULA_FILE = "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_14M.txt"
-_C.DATA.VAL_FILE = _C.DATA.DATA_DIR + "/exprs_val.txt"
+_C.DATA.NAME = None
+_C.DATA.ARQMATH = None
+_C.DATA.MATH = None
+_C.DATA.N_EXPRS = None
 
 
 # -----------------------------------------------------------------------------
@@ -125,13 +139,6 @@ _C.LOADER.TRAIN.BATCH_SIZE = 64
 _C.LOADER.TRAIN.SHUFFLE = False
 _C.LOADER.TRAIN.NUM_WORKERS = 1
 _C.LOADER.TRAIN.PIN_MEMORY = True
-
-""" Val DataLoader """
-_C.LOADER.VAL = CN()
-_C.LOADER.VAL.BATCH_SIZE = 256
-_C.LOADER.VAL.SHUFFLE = False
-_C.LOADER.VAL.NUM_WORKERS = 1
-_C.LOADER.VAL.PIN_MEMORY = True
 
 
 # -----------------------------------------------------------------------------
@@ -151,26 +158,13 @@ LOG_LEVEL = LogLevel.INFO
 # -----------------------------------------------------------------------------
 _C.TRAIN = CN()
 
-""" Optimizer """
-_C.TRAIN.OPTIM = CN()
-_C.TRAIN.OPTIM.NAME = "adamw"
-_C.TRAIN.OPTIM.BASE_LR = 1e-4
-_C.TRAIN.OPTIM.WARMUP_LR = 1e-7
-_C.TRAIN.OPTIM.MIN_LR = 1e-6
-
-""" LR Scheduler """
-_C.TRAIN.LRS = CN()
-_C.TRAIN.LRS.NAME = "cosine"
-# epoch interval to decay LR, used in StepLRScheduler
-_C.TRAIN.LRS.DECAY_EPOCHS = 5
-# LR decay rate, used in StepLRScheduler
-_C.TRAIN.LRS.DECAY_RATE = 0.1
-
 """ Training """
+# epoch interval to decay LR, used in StepLRScheduler
+_C.TRAIN.DECAY_EPOCHS = 3
 _C.TRAIN.MAX_NORM = 1.0
-_C.TRAIN.N_ITER_PER_EPOCH = 222674
-_C.TRAIN.WARMUP_EPOCHS = 0.02245
-_C.TRAIN.N_EPOCHS = 2
+_C.TRAIN.N_ITER_PER_EPOCH = 312500
+_C.TRAIN.WARMUP_EPOCHS = 0.016
+_C.TRAIN.N_EPOCHS = 3
 _C.TRAIN.SAVE_N_ITERS = 1000
 _C.TRAIN.STATS_FILEPATH = "stats.json"
 
@@ -183,11 +177,39 @@ _C.VAL = CN()
 """ Validation """
 
 
+def _update_config_from_file(config, cfg_file):
+    config.defrost()
+    with open(cfg_file, 'r') as f:
+        yaml_cfg = yaml.load(f, Loader=yaml.FullLoader)
+
+    for cfg in yaml_cfg.setdefault('BASE', ['']):
+        if cfg:
+            _update_config_from_file(
+                config, os.path.join(os.path.dirname(cfg_file), cfg)
+            )
+    print(f'[INFO] merge config from `{cfg_file}`')
+    config.merge_from_file(cfg_file)
+    config.freeze()
+
+
+def update_config(config, args):
+    _update_config_from_file(config, args.cfg)
+    _update_config_from_file(config, args.dataset)
+
+    # cfg.defrost()
+    # if args.opts:
+    #     cfg.merge_from_list(args.opts)
+
+    # cfg.freeze()
+
+
 def get_config(args):
-    """Get a yacs CfgNode object with default values."""
+    """
+    Get a yacs CfgNode object with default values.
+    """
     # Return a clone so that the defaults will not be altered
     # This is for the "local variable" use pattern
-    config = _C.clone()
-    # update_config(config, args)
+    cfg = _C.clone()
+    update_config(cfg, args)
 
-    return config
+    return cfg

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import os
 import torch
 import torch.nn as nn
@@ -13,11 +11,12 @@ from utils import train_params
 
 
 def train_epoch(
-        bert: nn.Module,
-        math_enc: nn.Module,
+        model: nn.Module,
         ckpt_last: str,
         optimizer: optim.Optimizer,
         lr_scheduler: Scheduler,
+        postprocess: str,
+        n_exprs: int,
         criterion: nn.Module,
         max_norm: float,
         device: torch.device,
@@ -26,6 +25,8 @@ def train_epoch(
         init_batch: int,
         save_every_n_iters: int,
 ) -> float:
+    model.train(mode=True)
+
     loader_tqdm = tqdm(iterable=dataloader, position=1, leave=False)
     loader_tqdm.set_description(desc=f"[{timestamp()}] [Batch 0]", refresh=True)
 
@@ -36,89 +37,47 @@ def train_epoch(
         if i < init_batch:
             continue
 
-        qa = batch["qa"].to(device=device)
-        qa_mask = batch["qa_mask"].to(device=device)
-        math = batch["math"].to(device=device)
-        math_mask = batch["math_mask"].to(device=device)
+        input_ids = batch["input_ids"].to(device=device)
+        attn_mask = batch["attention_mask"].to(device=device, dtype=torch.bool)
+        attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
 
         optimizer.zero_grad()
-        qa_embs = bert(...)
-        math_embs = math_enc(tokens=math, mask=math_mask, cache_pos=None)
+        embs = model(input_ids=input_ids, attn_mask=attn_mask, cache_pos=None)
 
-        # ---------- mean pool ----------
-        src_mask = src_mask.squeeze(dim=(-3, -2))
-        n_pad = src_mask.int().sum(dim=-1)
-        eoe_ids = src_mask.size(dim=-1) - n_pad - 1
-        batch_ids = torch.arange(
-            start=0,
-            end=src_mask.size(dim=0),
-            dtype=torch.int64,
-            device=math_mask.device,
-        )
-        src_mask[batch_ids, eoe_ids] = True
-        src_mask[:, 0] = True
+        if postprocess == "cls":
+            embs = embs[:, 0, ...]
+        else:
+            attn_mask = attn_mask.squeeze(dim=(-3, -2))
+            n_pad = attn_mask.int().sum(dim=-1)
+            sep_ids = attn_mask.size(dim=-1) - n_pad - 1
+            batch_ids = torch.arange(
+                start=0,
+                end=attn_mask.size(dim=0),
+                dtype=torch.int64,
+                device=attn_mask.device,
+            )
+            attn_mask[batch_ids, sep_ids] = True
+            attn_mask[:, 0] = True
 
-        embs[src_mask] = 0.0
-        embs = embs.mean(dim=-2, keepdim=False)
-        embs = embs.view(-1, 5, embs.size(dim=-1))
+            embs[attn_mask] = 0.0
 
-        query = embs[:, 0, :]
-        pos_key = embs[:, 1, :]
-        neg_key = embs[:, 2:, :]
+            if postprocess == "mean":
+                embs = embs.mean(dim=-2, keepdim=False)
 
-        loss = criterion(
-            query=query,
-            pos_key=pos_key,
-            neg_key=neg_key,
-        )
-        # -------------------------------
+        embs = embs.view(-1, n_exprs, embs.size(dim=-1))
 
-        # ----------- max sim -----------
-        # src_mask = src_mask.squeeze(dim=(-3, -2))
-        # n_pad = src_mask.int().sum(dim=-1)
-        # eoe_ids = src_mask.size(dim=-1) - n_pad - 1
-        # batch_ids = torch.arange(
-        #     start=0, end=src_mask.size(dim=0), dtype=torch.int64, device=src_mask.device
-        # )
-        # src_mask[batch_ids, eoe_ids] = True
-        # src_mask[:, 0] = True
+        query = embs[:, 0, ...]
+        pos_key = embs[:, 1, ...]
+        neg_key = embs[:, 2:, ...]
 
-        # embs = embs.view(-1, 5, embs.size(dim=-2), embs.size(dim=-1))
-        # src_mask = src_mask.view(-1, 5, src_mask.size(dim=-1))
-
-        # query = embs[:, 0, :, :]
-        # pos_key = embs[:, 1, :, :]
-        # neg_key = embs[:, 2:, :, :]
-        # query_mask = src_mask[:, 0]
-        # pos_mask = src_mask[:, 1]
-        # neg_mask = src_mask[:, 2:]
-
-        # loss = criterion(
-        #     query=query,
-        #     query_mask=query_mask,
-        #     pos_key=pos_key,
-        #     pos_mask=pos_mask,
-        #     neg_key=neg_key,
-        #     neg_mask=neg_mask,
-        # )
-        # -------------------------------
-
-        # ---------- 1st token ----------
-        # embs = embs[:, 0, :]
-        # embs = embs.view(-1, 5, embs.size(dim=-1))
-        # query = embs[:, 0, :]
-        # pos_key = embs[:, 1, :]
-        # neg_key = embs[:, 2:, :]
-        # loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
-        # -------------------------------
+        loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
 
         loss.backward()
-        nn.utils.clip_grad_norm_(bert.parameters(), max_norm=max_norm)
-        nn.utils.clip_grad_norm_(math_enc.parameters(), max_norm=max_norm)
+        nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
         optimizer.step()
         lr_scheduler.step_update(n_iters * epoch + i)
 
-        loss_meter.update(loss.item(), n=math.size(dim=0))
+        loss_meter.update(loss.item(), n=input_ids.size(dim=0))
         loader_tqdm.set_description(
             desc=f"[{timestamp()}] [Batch {i+1}]: "
                  f"train loss {loss_meter.avg:.6f}",
@@ -132,8 +91,7 @@ def train_epoch(
 
             torch.save(
                 {
-                    "bert_state_dict": bert.state_dict(),
-                    "math_state_dict": math_enc.state_dict(),
+                    "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "lr_scheduler_state_dict": lr_scheduler.state_dict(),
                     "epoch": epoch,
@@ -151,13 +109,12 @@ def train_epoch(
 
 
 def train_model(
-        bert: nn.Module,
-        math_enc: nn.Module,
-        bert_pretrain: Optional[str],
-        math_enc_pretrain: Optional[str],
+        model: nn.Module,
         ckpt_last: str,
         optimizer: optim.Optimizer,
         lr_scheduler: optim.lr_scheduler.LRScheduler,
+        postprocess: str,
+        n_exprs: int,
         criterion: nn.Module,
         max_norm: float,
         device: torch.device,
@@ -169,34 +126,18 @@ def train_model(
     if not os.path.exists(path=path):
         os.makedirs(name=path, exist_ok=True)
 
-    bert.to(device=device)
-    math_enc.to(device=device)
-    bert.train(mode=True)
-    math_enc.train(mode=True)
+    model.to(device=device)
 
-    bert_params = train_params(model=bert)
-    math_enc_params = train_params(model=math_enc)
-    log_info(f"BERT    trainable parameters {bert_params * 1e-6:.4f}M")
-    log_info(f"MathEnc trainable parameters {math_enc_params * 1e-6:.4f}M")
-    log_info(f"Total   trainable parameters {(bert_params + math_enc_params) * 1e-6:.4f}M")
+    params = train_params(model=model)
+    log_info(f"Total trainable parameters {params * 1e-6:.4f}M")
 
     init_epoch = 0
     init_batch = 0
     best_loss = float('inf')
 
-    if bert_pretrain:
-        ckpt = torch.load(f=bert_pretrain, map_location=device)
-        bert.load_state_dict(state_dict=ckpt["model_state_dict"])
-        log_info(f"Loaded pretrained BERT    from `{bert_pretrain}`")
-    if math_enc_pretrain:
-        ckpt = torch.load(f=math_enc_pretrain, map_location=device)
-        math_enc.load_state_dict(state_dict=ckpt["model_state_dict"])
-        log_info(f"Loaded pretrained MathEnc from `{math_enc_pretrain}`")
-
     if os.path.exists(path=ckpt_last):
         ckpt = torch.load(f=ckpt_last, map_location=device)
-        bert.load_state_dict(state_dict=ckpt["bert_state_dict"])
-        math_enc.load_state_dict(state_dict=ckpt["math_enc_state_dict"])
+        model.load_state_dict(state_dict=ckpt["model_state_dict"])
         optimizer.load_state_dict(state_dict=ckpt["optimizer_state_dict"])
         lr_scheduler.load_state_dict(state_dict=ckpt["lr_scheduler_state_dict"])
         init_batch = ckpt["batch"]+1
@@ -217,11 +158,12 @@ def train_model(
             refresh=True,
         )
         loss = train_epoch(
-            bert=bert,
-            math_enc=math_enc,
+            model=model,
             ckpt_last=ckpt_last,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
+            postprocess=postprocess,
+            n_exprs=n_exprs,
             criterion=criterion,
             max_norm=max_norm,
             device=device,
@@ -237,8 +179,7 @@ def train_model(
 
         torch.save(
             {
-                "bert_state_dict": bert.state_dict(),
-                "math_enc_state_dict": math_enc.state_dict(),
+                "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "lr_scheduler_state": lr_scheduler.state_dict(),
                 "epoch": epoch,

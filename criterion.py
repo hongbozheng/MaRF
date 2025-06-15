@@ -3,7 +3,6 @@ from torch import Tensor
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from logger import log_error
 
 
 class InfoNCE(nn.Module):
@@ -60,20 +59,14 @@ class MaxSim(nn.Module):
     def forward(
             self,
             query: Tensor,
-            query_mask: Tensor,
             pos_key: Tensor,
-            pos_mask: Tensor,
             neg_key: Tensor,
-            neg_mask: Tensor,
     ) -> Tensor:
         # [B, L, D] -> [B, L, D]
-        query = query * (~query_mask).unsqueeze(dim=-1).float()
         query = F.normalize(input=query, p=2.0, dim=-1, eps=1e-12)
         # [B, L, D] -> [B, L, D]
-        pos_key = pos_key * (~pos_mask).unsqueeze(dim=-1).float()
         pos_key = F.normalize(input=pos_key, p=2.0, dim=-1, eps=1e-12)
         # [B, NG, L, D] -> [B, NG, L, D]
-        neg_key = neg_key * (~neg_mask).unsqueeze(dim=-1).float()
         neg_key = F.normalize(input=neg_key, p=2.0, dim=-1, eps=1e-12)
 
         # [B. L, D] @ [B, D, L] -> [B, L, L]
@@ -109,24 +102,22 @@ class MaxSim(nn.Module):
 
 
 def build_criterion(cfg) -> nn.Module:
-    criterion_name = cfg.TRAIN.CRITERION.NAME.lower()
+    name = cfg.CRITERION.NAME.lower()
 
     criterion = None
-    if criterion_name == 'infonce':
+    if name == 'infonce':
         criterion = InfoNCE(
             temperature=cfg.CRITERION.INFONCE.TEMPERATURE,
             reduction=cfg.CRITERION.INFONCE.REDUCTION,
         )
-    elif criterion_name == 'maxsim':
+    elif name == 'maxsim':
         criterion = MaxSim(
             temperature=cfg.CRITERION.MAXSIM.TEMPERATURE,
             reduction=cfg.CRITERION.MAXSIM.REDUCTION,
         )
     else:
-        log_error(
-            "Invalid criterion. "
-            "Please choose from {{'InfoNCE', 'MaxSim'}}."
+        raise ValueError(
+            "Invalid criterion. Please choose from {{'InfoNCE', 'MaxSim'}}."
         )
-        exit(1)
 
     return criterion

@@ -1,0 +1,5 @@
+DATA:
+  NAME: "math"
+  ARQMATH: null
+  MATH: "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_pya0.txt"
+  N_EXPRS: 3
