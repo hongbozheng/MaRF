@@ -43,9 +43,9 @@ def train_epoch(
 
         optimizer.zero_grad()
 
-        if name == "dual_enc":
+        if name == "dualenc":
             raise NotImplementedError
-        elif name == "math_enc":
+        elif name == "mathenc":
             attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
             embs = model(input_ids=input_ids, attn_mask=attn_mask, cache_pos=None)
             attn_mask = attn_mask.squeeze(dim=(-3, -2))

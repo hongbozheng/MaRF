@@ -56,7 +56,7 @@ CRITERION:
     REDUCTION: "mean"
 
 POSTPROCESS:
-  NAME: "maxsim"
+  NAME: "mean"
 
 LOADER:
   TRAIN:
