@@ -30,6 +30,7 @@ def train_epoch(
     loader_tqdm = tqdm(iterable=dataloader, position=1, leave=False)
     loader_tqdm.set_description(desc=f"[{timestamp()}] [Batch 0]", refresh=True)
 
+    name = model.__class__.__name__.lower()
     n_iters = len(dataloader)
     loss_meter = AverageMeter()
 
@@ -39,15 +40,25 @@ def train_epoch(
 
         input_ids = batch["input_ids"].to(device=device)
         attn_mask = batch["attention_mask"].to(device=device, dtype=torch.bool)
-        attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
 
         optimizer.zero_grad()
-        embs = model(input_ids=input_ids, attn_mask=attn_mask, cache_pos=None)
+
+        if name == "dual_enc":
+            raise NotImplementedError
+        elif name == "math_enc":
+            attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
+            embs = model(input_ids=input_ids, attn_mask=attn_mask, cache_pos=None)
+            attn_mask = attn_mask.squeeze(dim=(-3, -2))
+        elif name == "bertmodel":
+            embs = model(input_ids=input_ids, attention_mask=attn_mask)
+            embs = embs.last_hidden_state
+        else:
+            raise ValueError(f"Invalid model class `{name}`")
 
         if postprocess == "cls":
             embs = embs[:, 0, ...]
-        else:
-            attn_mask = attn_mask.squeeze(dim=(-3, -2))
+            embs = embs.view(-1, n_exprs, embs.size(dim=-1))
+        elif postprocess in {"mean", "maxsim"}:
             n_pad = attn_mask.int().sum(dim=-1)
             sep_ids = attn_mask.size(dim=-1) - n_pad - 1
             batch_ids = torch.arange(
@@ -61,15 +72,17 @@ def train_epoch(
 
             embs[attn_mask] = 0.0
 
+            embs = embs.view(-1, n_exprs, embs.size(dim=-2), embs.size(dim=-1))
+
             if postprocess == "mean":
                 embs = embs.mean(dim=-2, keepdim=False)
 
-        embs = embs.view(-1, n_exprs, embs.size(dim=-1))
-
         query = embs[:, 0, ...]
+        print(query.shape)
         pos_key = embs[:, 1, ...]
+        print(pos_key.shape)
         neg_key = embs[:, 2:, ...]
-
+        print(neg_key.shape)
         loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
 
         loss.backward()
