@@ -2,6 +2,8 @@ MODEL:
   NAME: "bert"
   BERT:
     ADD_POOLING: false
+    REDUCE_DIM: true
+    DIM: 128
   MATH_ENC:
     TOK_EMBEDDINGS: "bert"
     VOCAB_SIZE: null

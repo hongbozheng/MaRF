@@ -38,7 +38,7 @@ def train_epoch(
         if i < init_batch:
             continue
 
-        input_ids = batch["input_ids"].to(device=device)
+        token_ids = batch["input_ids"].to(device=device)
         attn_mask = batch["attention_mask"].to(device=device, dtype=torch.bool)
 
         optimizer.zero_grad()
@@ -46,43 +46,40 @@ def train_epoch(
         if name == "dualenc":
             raise NotImplementedError
         elif name == "mathenc":
-            attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
-            embs = model(input_ids=input_ids, attn_mask=attn_mask, cache_pos=None)
-            attn_mask = attn_mask.squeeze(dim=(-3, -2))
-        elif name == "bertmodel":
-            embs = model(input_ids=input_ids, attention_mask=attn_mask)
-            embs = embs.last_hidden_state
+            # attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
+            embs = model(token_ids=token_ids, attn_mask=attn_mask, cache_pos=None)
+            # attn_mask = attn_mask.squeeze(dim=(-3, -2))
+        elif name == "bert":
+            embs = model(token_ids=token_ids, attn_mask=attn_mask)
         else:
             raise ValueError(f"Invalid model class `{name}`")
 
         if postprocess == "cls":
             embs = embs[:, 0, ...]
             embs = embs.view(-1, n_exprs, embs.size(dim=-1))
-        elif postprocess in {"mean", "maxsim"}:
-            n_pad = attn_mask.int().sum(dim=-1)
-            sep_ids = attn_mask.size(dim=-1) - n_pad - 1
+        elif postprocess in {"mean", "max", "maxsim"}:
+            sep_ids = attn_mask.int().sum(dim=-1) - 1
             batch_ids = torch.arange(
                 start=0,
                 end=attn_mask.size(dim=0),
                 dtype=torch.int64,
                 device=attn_mask.device,
             )
-            attn_mask[batch_ids, sep_ids] = True
-            attn_mask[:, 0] = True
+            attn_mask[batch_ids, sep_ids] = False
+            attn_mask[:, 0] = False
 
-            embs[attn_mask] = 0.0
+            embs[~attn_mask] = 0.0
 
             embs = embs.view(-1, n_exprs, embs.size(dim=-2), embs.size(dim=-1))
 
             if postprocess == "mean":
                 embs = embs.mean(dim=-2, keepdim=False)
+            elif postprocess == "max":
+                embs, _ = embs.max(dim=-2, keepdim=False)
 
         query = embs[:, 0, ...]
-        print(query.shape)
         pos_key = embs[:, 1, ...]
-        print(pos_key.shape)
         neg_key = embs[:, 2:, ...]
-        print(neg_key.shape)
         loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
 
         loss.backward()
@@ -90,7 +87,7 @@ def train_epoch(
         optimizer.step()
         lr_scheduler.step_update(n_iters * epoch + i)
 
-        loss_meter.update(loss.item(), n=input_ids.size(dim=0))
+        loss_meter.update(loss.item(), n=token_ids.size(dim=0))
         loader_tqdm.set_description(
             desc=f"[{timestamp()}] [Batch {i+1}]: "
                  f"train loss {loss_meter.avg:.6f}",

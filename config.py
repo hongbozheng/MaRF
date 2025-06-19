@@ -19,10 +19,12 @@ _C.MODEL.NAME = None
 """ Bert """
 _C.MODEL.BERT = CN()
 _C.MODEL.BERT.ADD_POOLING = False
+_C.MODEL.BERT.REDUCE_DIM = False
+_C.MODEL.BERT.DIM = None
 
 """ Transformer (Math) """
 _C.MODEL.MATH_ENC = CN()
-_C.MODEL.MATH_ENC.TOK_EMBEDDINGS = None
+_C.MODEL.MATH_ENC.TOK_EMB = None
 _C.MODEL.MATH_ENC.VOCAB_SIZE = None
 _C.MODEL.MATH_ENC.DIM = 768
 _C.MODEL.MATH_ENC.N_LAYERS = 8
@@ -41,7 +43,7 @@ _C.MODEL.MATH_ENC.MAX_SEQ_LEN = 256
 _C.CKPT = CN()
 
 """ Model """
-_C.CKPT.DIR = "avgpool_L"
+_C.CKPT.DIR = "saved_models"
 _C.CKPT.BEST = _C.CKPT.DIR + "/best.ckpt"  # not used
 _C.CKPT.LAST = _C.CKPT.DIR + "/last.ckpt"
 

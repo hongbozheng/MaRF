@@ -2,8 +2,10 @@ MODEL:
   NAME: "math_enc"
   BERT:
     ADD_POOLING: false
+    REDUCE_DIM: false
+    DIM: null
   MATH_ENC:
-    TOK_EMBEDDINGS: "bert"
+    TOK_EMB: "bert"
     VOCAB_SIZE: null
     DIM: 768
     N_LAYERS: 8
@@ -16,9 +18,9 @@ MODEL:
     MAX_SEQ_LEN: 256
 
 CKPT:
-  DIR:  "maxsim"
-  BEST: "maxsim/best.ckpt"
-  LAST: "maxsim/last.ckpt"
+  DIR:  "mean"
+  BEST: "mean/best.ckpt"
+  LAST: "mean/last.ckpt"
   BERT:
     CFG: "pretrain/bert_cfg.json"
     PRETRAIN: "pretrain/bert.pt"
@@ -60,7 +62,7 @@ POSTPROCESS:
 
 LOADER:
   TRAIN:
-    BATCH_SIZE: 32
+    BATCH_SIZE: 16
     SHUFFLE: true
     NUM_WORKERS: 1
     PIN_MEMORY: true

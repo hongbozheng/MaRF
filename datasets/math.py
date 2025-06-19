@@ -35,7 +35,7 @@ class Math(Dataset):
             batch: List[List[Tensor]],
     ) -> Dict[str, Tensor]:
         exprs = [expr for item in batch for expr in item]
-        tokens = self.tokenizer(
+        batch_enc = self.tokenizer(
             text=exprs,
             add_special_tokens=True,
             padding=True,
@@ -45,7 +45,7 @@ class Math(Dataset):
             return_attention_mask=True,
         )
 
-        return tokens
+        return batch_enc
 
 
 @register_dataset(name="math")

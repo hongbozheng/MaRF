@@ -222,7 +222,7 @@ class EncoderBlock(nn.Module):
 class MathEnc(nn.Module):
     def __init__(
             self,
-            tok_embeddings: Optional[nn.Embedding],
+            tok_emb: Optional[nn.Embedding],
             vocab_size: Optional[int],
             dim: int,
             n_layers: int,
@@ -236,13 +236,13 @@ class MathEnc(nn.Module):
     ) -> None:
         super().__init__()
 
-        if (tok_embeddings is None) == (vocab_size is None):
+        if (tok_emb is None) == (vocab_size is None):
             raise ValueError(
-                "You must provide exactly one of `tok_embeddings` or `vocab_size`"
+                "You must provide exactly one of `tok_emb` or `vocab_size`"
             )
 
-        if tok_embeddings is not None:
-            self.tok_embeddings = tok_embeddings
+        if tok_emb is not None:
+            self.tok_emb = tok_emb
         else:
             self.tok_embeddings = nn.Embedding(
                 num_embeddings=vocab_size, embedding_dim=dim
@@ -269,15 +269,17 @@ class MathEnc(nn.Module):
 
     def forward(
             self,
-            input_ids: Tensor,
+            token_ids: Tensor,
             attn_mask: Tensor,
             cache_pos: Optional[Tensor],
     ) -> Tensor:
         # [B, L] -> [B, L, D]
-        h = self.tok_embeddings(input_ids)
+        h = self.tok_emb(token_ids)
 
-        freqs_complex = self.freqs_complex[:input_ids.shape[1]] \
-            .to(device=input_ids.device)
+        freqs_complex = self.freqs_complex[:token_ids.size(dim=1)] \
+            .to(device=token_ids.device)
+
+        attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
 
         for layer in self.layers:
             h = layer(
@@ -293,14 +295,14 @@ class MathEnc(nn.Module):
 
 @register_model(name="math_enc")
 def build_model(cfg) -> nn.Module:
-    if cfg.MODEL.MATH_ENC.TOK_EMBEDDINGS == "bert":
+    if cfg.MODEL.MATH_ENC.TOK_EMB == "bert":
         bert_cfg = BertConfig.from_json_file(json_file=cfg.CKPT.BERT.CFG)
         bert = BertModel(
             config=bert_cfg, add_pooling_layer=cfg.MODEL.BERT.ADD_POOLING
         )
 
         return MathEnc(
-            tok_embeddings=bert.get_input_embeddings(),
+            tok_emb=bert.get_input_embeddings(),
             vocab_size=cfg.MODEL.MATH_ENC.VOCAB_SIZE,
             dim=cfg.MODEL.MATH_ENC.DIM,
             n_layers=cfg.MODEL.MATH_ENC.N_LAYERS,
@@ -314,7 +316,7 @@ def build_model(cfg) -> nn.Module:
         )
     else:
         return MathEnc(
-            tok_embeddings=cfg.MODEL.MATH_ENC.TOK_EMBEDDINGS,
+            tok_emb=cfg.MODEL.MATH_ENC.TOK_EMB,
             vocab_size=cfg.MODEL.MATH_ENC.VOCAB_SIZE,
             dim=cfg.MODEL.MATH_ENC.DIM,
             n_layers=cfg.MODEL.MATH_ENC.N_LAYERS,
