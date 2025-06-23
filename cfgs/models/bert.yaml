@@ -5,7 +5,7 @@ MODEL:
     REDUCE_DIM: true
     DIM: 128
   MATH_ENC:
-    TOK_EMBEDDINGS: "bert"
+    TOK_EMB: "bert"
     VOCAB_SIZE: null
     DIM: 768
     N_LAYERS: 8

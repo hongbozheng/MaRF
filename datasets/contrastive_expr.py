@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from transformers import BertTokenizer
 
 
-class Math(Dataset):
+class ContrastiveExpr(Dataset):
     def __init__(
             self,
             file_path: str,
@@ -48,13 +48,13 @@ class Math(Dataset):
         return batch_enc
 
 
-@register_dataset(name="math")
+@register_dataset(name="contrastive_expr")
 def build_dataset(cfg) -> Dataset:
     tokenizer = BertTokenizer.from_pretrained(
         pretrained_model_name_or_path=cfg.CKPT.BERT.TOKENIZER
     )
 
-    return Math(
+    return ContrastiveExpr(
         file_path=cfg.DATA.MATH,
         tokenizer=tokenizer,
         max_seq_len=cfg.MODEL.MATH_ENC.MAX_SEQ_LEN,

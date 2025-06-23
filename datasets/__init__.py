@@ -1,2 +1,2 @@
 from .arqmath import ARQMath
-from .math import Math
+from .contrastive_expr import ContrastiveExpr

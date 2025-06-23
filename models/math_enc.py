@@ -244,7 +244,7 @@ class MathEnc(nn.Module):
         if tok_emb is not None:
             self.tok_emb = tok_emb
         else:
-            self.tok_embeddings = nn.Embedding(
+            self.tok_emb = nn.Embedding(
                 num_embeddings=vocab_size, embedding_dim=dim
             )
 

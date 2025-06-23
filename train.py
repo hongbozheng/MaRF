@@ -1,3 +1,6 @@
+from torch import Tensor
+from typing import Optional
+
 import os
 import torch
 import torch.nn as nn
@@ -8,6 +11,65 @@ from timm.scheduler.scheduler import Scheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils import train_params
+
+
+def compute_loss(
+        postprocess: str,
+        criterion: nn.Module,
+        embs: Tensor,
+        attn_mask: Tensor,
+        n_exprs: Optional[int],
+) -> float:
+    if postprocess == "cls":
+        embs = embs[:, 0, :].view(-1, n_exprs, embs.size(dim=-1))
+
+    elif postprocess in {"mean", "max", "maxsim"}:
+        sep_ids = attn_mask.int().sum(dim=-1) - 1
+        batch_ids = torch.arange(
+            start=0,
+            end=attn_mask.size(dim=0),
+            dtype=torch.int64,
+            device=attn_mask.device,
+        )
+        attn_mask[batch_ids, sep_ids] = False
+        attn_mask[:, 0] = False
+
+        if postprocess == "mean":
+            embs[~attn_mask] = 0.0
+            embs = embs.sum(dim=-2, keepdim=False)
+            n_tokens = attn_mask.int().sum(dim=1, keepdim=False) \
+                .float().unsqueeze(dim=-1)
+            embs = embs / n_tokens
+        elif postprocess == "max":
+            embs[~attn_mask] = float("-inf")
+            embs = embs.max(dim=-2, keepdim=False).values
+
+        elif postprocess == "maxsim":
+            _, L, D = embs.size()
+            embs = embs.view(-1, n_exprs, L, D)
+            attn_mask = attn_mask.view(-1, n_exprs, L)
+            query = embs[:, 0, :, :]
+            pos_key = embs[:, 1, :, :]
+            neg_key = embs[:, 2:, :, :]
+            query_mask = attn_mask[:, 0, :]
+            pos_mask = attn_mask[:, 1, :]
+            neg_mask = attn_mask[:, 2:, :]
+
+            return criterion(
+                query=query,
+                pos_key=pos_key,
+                neg_key=neg_key,
+                query_mask=query_mask,
+                pos_mask=pos_mask,
+                neg_mask=neg_mask,
+            )
+
+    embs = embs.view(-1, n_exprs, embs.size(dim=-1))
+    query = embs[:, 0, :]
+    pos_key = embs[:, 1, :]
+    neg_key = embs[:, 2:, :]
+
+    return criterion(query=query, pos_key=pos_key, neg_key=neg_key)
 
 
 def train_epoch(
@@ -54,33 +116,13 @@ def train_epoch(
         else:
             raise ValueError(f"Invalid model class `{name}`")
 
-        if postprocess == "cls":
-            embs = embs[:, 0, ...]
-            embs = embs.view(-1, n_exprs, embs.size(dim=-1))
-        elif postprocess in {"mean", "max", "maxsim"}:
-            sep_ids = attn_mask.int().sum(dim=-1) - 1
-            batch_ids = torch.arange(
-                start=0,
-                end=attn_mask.size(dim=0),
-                dtype=torch.int64,
-                device=attn_mask.device,
-            )
-            attn_mask[batch_ids, sep_ids] = False
-            attn_mask[:, 0] = False
-
-            embs[~attn_mask] = 0.0
-
-            embs = embs.view(-1, n_exprs, embs.size(dim=-2), embs.size(dim=-1))
-
-            if postprocess == "mean":
-                embs = embs.mean(dim=-2, keepdim=False)
-            elif postprocess == "max":
-                embs, _ = embs.max(dim=-2, keepdim=False)
-
-        query = embs[:, 0, ...]
-        pos_key = embs[:, 1, ...]
-        neg_key = embs[:, 2:, ...]
-        loss = criterion(query=query, pos_key=pos_key, neg_key=neg_key)
+        loss = compute_loss(
+            postprocess=postprocess,
+            criterion=criterion,
+            embs=embs,
+            attn_mask=attn_mask,
+            n_exprs=n_exprs,
+        )
 
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)

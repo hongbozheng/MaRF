@@ -61,6 +61,9 @@ class MaxSim(nn.Module):
             query: Tensor,
             pos_key: Tensor,
             neg_key: Tensor,
+            query_mask: Tensor,
+            pos_mask: Tensor,
+            neg_mask: Tensor,
     ) -> Tensor:
         # [B, L, D] -> [B, L, D]
         query = F.normalize(input=query, p=2.0, dim=-1, eps=1e-12)
@@ -71,19 +74,29 @@ class MaxSim(nn.Module):
 
         # [B. L, D] @ [B, D, L] -> [B, L, L]
         pos_logit = query @ pos_key.transpose(dim0=-2, dim1=-1)
+        # [B, L] -> [B, 1, L]
+        pos_mask = pos_mask.unsqueeze(dim=1)
+        pos_logit = pos_logit.masked_fill(mask=~pos_mask, value=float('-inf'))
         # [B, L, L] -> [B, L]
         pos_logit = torch.max(input=pos_logit, dim=-1).values
-        # [B, L] -> [B, 1]
-        pos_logit = pos_logit.sum(dim=-1, keepdim=True)
+        # [B, L] * [B, L] -> [B, 1]
+        pos_logit = (pos_logit * query_mask.to(dtype=pos_logit.dtype)) \
+            .sum(dim=-1, keepdim=True)
 
         # [B, L, D] - > [B, 1, L, D]
         query = query.unsqueeze(dim=1)
         # [B, 1, L, D] @ [B, NG, D, L] -> [B, NG, L, L]
         neg_logit = query @ neg_key.transpose(dim0=-2, dim1=-1)
+        # [B, L] -> [B, 1, L]
+        neg_mask = neg_mask.unsqueeze(dim=1)
+        neg_logit = neg_logit.masked_fill(mask=~pos_mask, value=float('-inf'))
         # [B, NG, L, L] -> [B, NG, L]
         neg_logit = torch.max(input=neg_logit, dim=-1).values
-        # [B, NG, L] -> [B, NG]
-        neg_logit = neg_logit.sum(dim=-1)
+        # [B, L] -> [B, 1, L]
+        query_mask = query_mask.unsqueeze(dim=1)
+        # [B, NG, L] * [B, 1, L] -> [B, NG]
+        neg_logit = (neg_logit * query_mask.to(dtype=neg_logit.dtype)) \
+            .sum(dim=-1, keepdim=False)
 
         # [B, 1] [B, NG] -> [B, 1 + NG]
         logits = torch.cat(tensors=[pos_logit, neg_logit], dim=1)
