@@ -111,7 +111,7 @@ class Attention(nn.Module):
         # [B, H_Q, L, D_H] @ [B, H_KV, D_H, L] -> [B, H_Q, L, L]
         scores = q @ k.transpose(dim0=-2, dim1=-1) / math.sqrt(self.head_dim)
         if mask is not None:
-            scores.masked_fill(mask=mask, value=float('-inf'))
+            scores = scores + mask
         scores = F.softmax(input=scores.float(), dim=-1).type_as(q)
 
         # [B, H_Q, L, L] @ [B, H_KV, L, D_H] -> [B, H_Q, L, D_H]
@@ -279,7 +279,11 @@ class MathEnc(nn.Module):
         freqs_complex = self.freqs_complex[:token_ids.size(dim=1)] \
             .to(device=token_ids.device)
 
-        attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
+        if attn_mask is not None:
+            # [B, L] -> [B, 1, 1, L]
+            attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
+            attn_mask = attn_mask.to(dtype=torch.float32)
+            attn_mask = (1.0 - attn_mask) * -10000.0
 
         for layer in self.layers:
             h = layer(
