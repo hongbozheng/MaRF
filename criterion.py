@@ -75,21 +75,25 @@ class MaxSim(nn.Module):
         # [B. L, D] @ [B, D, L] -> [B, L, L]
         pos_logit = query @ pos_key.transpose(dim0=-2, dim1=-1)
         # [B, L] -> [B, 1, L]
-        pos_mask = pos_mask.unsqueeze(dim=1)
-        pos_logit = pos_logit.masked_fill(mask=~pos_mask, value=float('-inf'))
+        pos_mask = pos_mask.unsqueeze(dim=-2).to(dtype=pos_logit.dtype)
+        pos_mask = (1.0 - pos_mask) * -10000.0
+        # [B, L, L] + [B, 1, L] -> [B, L, L]
+        pos_logit = pos_logit + pos_mask
         # [B, L, L] -> [B, L]
         pos_logit = torch.max(input=pos_logit, dim=-1).values
         # [B, L] * [B, L] -> [B, 1]
         pos_logit = (pos_logit * query_mask.to(dtype=pos_logit.dtype)) \
             .sum(dim=-1, keepdim=True)
 
-        # [B, L, D] - > [B, 1, L, D]
+        # [B, L, D] -> [B, 1, L, D]
         query = query.unsqueeze(dim=1)
         # [B, 1, L, D] @ [B, NG, D, L] -> [B, NG, L, L]
         neg_logit = query @ neg_key.transpose(dim0=-2, dim1=-1)
-        # [B, L] -> [B, 1, L]
-        neg_mask = neg_mask.unsqueeze(dim=1)
-        neg_logit = neg_logit.masked_fill(mask=~pos_mask, value=float('-inf'))
+        # [B, NG, L] -> [B, NG, 1, L]
+        neg_mask = neg_mask.unsqueeze(dim=-2).to(dtype=neg_logit.dtype)
+        neg_mask = (1.0 - neg_mask) * -10000.0
+        # [B, NG, L, L] + [B, NG, 1, L] -> [B, NG, L, L]
+        neg_logit = neg_logit + neg_mask
         # [B, NG, L, L] -> [B, NG, L]
         neg_logit = torch.max(input=neg_logit, dim=-1).values
         # [B, L] -> [B, 1, L]

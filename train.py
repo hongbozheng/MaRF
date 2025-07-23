@@ -101,17 +101,25 @@ def train_epoch(
             continue
 
         token_ids = batch["input_ids"].to(device=device)
-        attn_mask = batch["attention_mask"].to(device=device, dtype=torch.bool)
+        attn_mask = batch["attention_mask"].to(device=device)
 
         optimizer.zero_grad()
 
         if name == "dualenc":
             raise NotImplementedError
         elif name == "mathenc":
-            # attn_mask = attn_mask.unsqueeze(dim=1).unsqueeze(dim=1)
             embs = model(token_ids=token_ids, attn_mask=attn_mask, cache_pos=None)
-            # attn_mask = attn_mask.squeeze(dim=(-3, -2))
         elif name == "bert":
+            query_ids = torch.arange(
+                start=0, end=token_ids.size(dim=0), step=n_exprs
+            )
+            query = token_ids[query_ids]
+            # change from [PAD] (0) to [MASK] (103)
+            query[query == 0] = 103
+            token_ids[query_ids] = query
+            query_mask = attn_mask[query_ids]
+            query_mask[query_mask == 0] = 1
+            attn_mask[query_ids] = query_mask
             embs = model(token_ids=token_ids, attn_mask=attn_mask)
         else:
             raise ValueError(f"Invalid model class `{name}`")
