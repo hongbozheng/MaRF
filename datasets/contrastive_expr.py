@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Dict, List
 from torch import Tensor
 
 from .registry import register_dataset
@@ -21,6 +21,9 @@ class ContrastiveExpr(Dataset):
         file = open(file=file_path, mode='r', encoding='utf-8')
         for line in file:
             expr = line.strip().split(sep='\t')
+            expr[0] = f"[unused0] {expr[0]}"
+            expr[1] = f"[unused1] {expr[1]}"
+            expr[2] = f"[unused1] {expr[2]}"
             self.exprs.append(expr)
         file.close()
 
@@ -38,7 +41,7 @@ class ContrastiveExpr(Dataset):
         batch_enc = self.tokenizer(
             text=exprs,
             add_special_tokens=True,
-            padding=True,
+            padding="max_length",
             truncation=True,
             max_length=self.max_seq_len,
             return_tensors="pt",
@@ -53,6 +56,9 @@ def build_dataset(cfg) -> Dataset:
     tokenizer = BertTokenizer.from_pretrained(
         pretrained_model_name_or_path=cfg.CKPT.BERT.TOKENIZER
     )
+    tokenizer.add_special_tokens({
+        'additional_special_tokens': ['[unused0]', '[unused1]']
+    })
 
     return ContrastiveExpr(
         file_path=cfg.DATA.MATH,

@@ -3,7 +3,7 @@
 
 import argparse
 from config import get_config, DEVICE
-from criterion import build_criterion
+from criterions.registry import build_criterion
 from datasets.registry import build_dataset
 from lr_scheduler import build_scheduler
 from models.registry import build_model

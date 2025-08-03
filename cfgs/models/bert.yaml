@@ -23,7 +23,7 @@ CKPT:
   LAST: "maxsim/last.ckpt"
   BERT:
     CFG: "pretrain/bert_cfg.json"
-    PRETRAIN: "pretrain/bert.pt"
+    PRETRAIN: "pretrain/pretrain.pt"
     TOKENIZER: "pretrain/bert-math-tokenizer"
   MATH_ENC:
     PRETRAIN: null
