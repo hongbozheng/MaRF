@@ -48,9 +48,9 @@ class MaxSim(nn.Module):
         neg_logit = query @ neg_key.transpose(dim0=-2, dim1=-1)
         # [B, NG, L] -> [B, NG, 1, L]
         neg_mask = neg_mask.unsqueeze(dim=-2).to(dtype=neg_logit.dtype)
-        neg_mask = (1.0 - neg_mask) * -10000.0
+        # neg_mask = (1.0 - neg_mask) * -10000.0
         # [B, NG, L, L] + [B, NG, 1, L] -> [B, NG, L, L]
-        neg_logit = neg_logit + neg_mask
+        neg_logit = neg_logit * neg_mask
         # [B, NG, L, L] -> [B, NG, L]
         neg_logit = torch.max(input=neg_logit, dim=-1).values
         # [B, L] -> [B, 1, L]
