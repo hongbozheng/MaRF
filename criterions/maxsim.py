@@ -54,7 +54,7 @@ class MaxSim(nn.Module):
         # [B, NG, L, L] -> [B, NG, L]
         neg_logit = torch.max(input=neg_logit, dim=-1).values
         # [B, L] -> [B, 1, L]
-        query_mask = query_mask.unsqueeze(dim=1)
+        # query_mask = query_mask.unsqueeze(dim=1)
         # [B, NG, L] * [B, 1, L] -> [B, NG]
         # neg_logit = (neg_logit * query_mask.to(dtype=neg_logit.dtype)) \
         #     .sum(dim=-1, keepdim=False)
