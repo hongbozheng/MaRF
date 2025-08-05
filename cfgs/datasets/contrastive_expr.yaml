@@ -1,5 +1,4 @@
 DATA:
   NAME: "contrastive_expr"
-  ARQMATH: null
   MATH: "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_pya0_formula.txt"
   N_EXPRS: 3

@@ -15,7 +15,7 @@ MODEL:
     FFN_DIM_MULTIPLIER: null
     NORM_EPS: 1e-5
     THETA: 10000
-    MAX_SEQ_LEN: 256
+    MAX_SEQ_LEN: 512
 
 CKPT:
   DIR:  "maxsim"
@@ -62,7 +62,7 @@ POSTPROCESS:
 
 LOADER:
   TRAIN:
-    BATCH_SIZE: 64
+    BATCH_SIZE: 32
     SHUFFLE: true
     NUM_WORKERS: 1
     PIN_MEMORY: true

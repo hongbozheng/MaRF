@@ -24,18 +24,18 @@ def compute_loss(
         embs = embs[:, 0, :].view(-1, n_exprs, embs.size(dim=-1))
 
     elif postprocess in {"mean", "max", "maxsim"}:
-        sep_ids = attn_mask.int().sum(dim=-1) - 1
-        batch_ids = torch.arange(
-            start=0,
-            end=attn_mask.size(dim=0),
-            dtype=torch.int64,
-            device=attn_mask.device,
-        )
-        attn_mask[batch_ids, sep_ids] = False
-        attn_mask[:, 0] = False
+        # sep_ids = attn_mask.int().sum(dim=-1) - 1
+        # batch_ids = torch.arange(
+        #     start=0,
+        #     end=attn_mask.size(dim=0),
+        #     dtype=torch.int64,
+        #     device=attn_mask.device,
+        # )
+        # attn_mask[batch_ids, sep_ids] = False
+        # attn_mask[:, 0] = False
 
         if postprocess == "mean":
-            embs[~attn_mask] = 0.0
+            # embs[attn_mask == 0] = 0.0
             embs = embs.sum(dim=-2, keepdim=False)
             n_tokens = attn_mask.int().sum(dim=1, keepdim=False) \
                 .float().unsqueeze(dim=-1)
@@ -121,6 +121,11 @@ def train_epoch(
             query_mask[query_mask == 0] = 1
             attn_mask[query_ids] = query_mask
             embs = model(token_ids=token_ids, attn_mask=attn_mask)
+            punct_mask = batch["punct_mask"].to(device=device)
+            query_mask = punct_mask[query_ids]
+            query_mask[query_mask == 0] = 1
+            punct_mask[query_ids] = query_mask
+            attn_mask = attn_mask & punct_mask
         else:
             raise ValueError(f"Invalid model class `{name}`")
 

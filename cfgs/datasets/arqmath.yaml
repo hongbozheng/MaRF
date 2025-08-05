@@ -1,0 +1,4 @@
+DATA:
+  NAME: "arqmath"
+  ARQMATH: "/projects/illinois/eng/ece/kani/user/suyuan2/data/train_set_pya0_post.txt"
+  N_EXPRS: 3
